@@ -10,3 +10,5 @@ export 'custom_tab_bar.dart';
 
 // UI Components
 export 'progress_indicator.dart';
+export 'image_slider.dart';
+export 'places_category.dart';

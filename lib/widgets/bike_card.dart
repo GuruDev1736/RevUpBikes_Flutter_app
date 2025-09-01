@@ -152,7 +152,7 @@ class BikeCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text(
-                            '₹${bike.pricePerHour.toInt()}',
+                            '₹${bike.pricePerDay.toInt()}',
                             style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -160,7 +160,7 @@ class BikeCard extends StatelessWidget {
                             ),
                           ),
                           const Text(
-                            'per hour',
+                            'per day',
                             style: TextStyle(
                               fontSize: 12,
                               color: AppColors.textSecondary,

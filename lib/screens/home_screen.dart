@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
 import '../models/bike_model.dart';
 import '../widgets/bike_card.dart';
+import '../components/image_slider.dart';
+import '../components/places_category.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -13,7 +15,9 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _selectedCategory = 'All';
+  String? _selectedPlace;
   List<BikeModel> _filteredBikes = BikeModel.sampleBikes;
+  List<PlaceCategory> _placesData = PlaceCategory.samplePlaces;
 
   @override
   void initState() {
@@ -39,9 +43,23 @@ class _HomeScreenState extends State<HomeScreen> {
             bike.type.toLowerCase().contains(
               _searchController.text.toLowerCase(),
             );
-        return matchesCategory && matchesSearch;
+        bool matchesPlace =
+            _selectedPlace == null || bike.location == _selectedPlace;
+        return matchesCategory && matchesSearch && matchesPlace;
       }).toList();
     });
+  }
+
+  void _onPlaceSelected(String placeName) {
+    setState(() {
+      // If the same place is selected again, deselect it (clear filter)
+      if (_selectedPlace == placeName) {
+        _selectedPlace = null;
+      } else {
+        _selectedPlace = placeName;
+      }
+    });
+    _filterBikes();
   }
 
   @override
@@ -49,19 +67,39 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: Column(
-          children: [
-            // Top app bar with greeting
-            _buildTopBar(),
+        child: CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: Column(
+                children: [
+                  // Top app bar with greeting
+                  _buildTopBar(),
 
-            // Search bar
-            _buildSearchBar(),
+                  // Image Slider
+                  ImageSlider(
+                    items: SliderDefaults.defaultItems,
+                    height: 180,
+                    autoPlay: true,
+                    autoPlayDuration: const Duration(seconds: 4),
+                  ),
 
-            // Categories
-            _buildCategories(),
+                  // Search bar
+                  _buildSearchBar(),
 
-            // Bikes list
-            Expanded(child: _buildBikesList()),
+                  // Places categories
+                  PlacesCategory(
+                    places: _placesData,
+                    onPlaceSelected: _onPlaceSelected,
+                    selectedPlace: _selectedPlace,
+                  ),
+
+                  // Bike Categories
+                  _buildCategories(),
+                ],
+              ),
+            ),
+            // Bikes list as sliver
+            _buildBikesSliver(),
           ],
         ),
       ),
@@ -117,7 +155,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildSearchBar() {
     return Container(
-      margin: const EdgeInsets.all(20),
+      margin: const EdgeInsets.fromLTRB(20, 10, 20, 20), // Reduced top margin
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(20),
@@ -157,59 +195,94 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildCategories() {
     return Container(
-      height: 50,
       margin: const EdgeInsets.only(bottom: 20),
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        itemCount: BikeModel.categories.length,
-        itemBuilder: (context, index) {
-          final category = BikeModel.categories[index];
-          final isSelected = category == _selectedCategory;
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Section header for bike categories
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                Icon(Icons.directions_bike, color: AppColors.primary, size: 24),
+                const SizedBox(width: 8),
+                const Text(
+                  'Bike Categories',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.text,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
 
-          return GestureDetector(
-            onTap: () {
-              setState(() {
-                _selectedCategory = category;
-              });
-              _filterBikes();
-            },
-            child: Container(
-              margin: const EdgeInsets.only(right: 12),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              decoration: BoxDecoration(
-                color: isSelected ? AppColors.primary : AppColors.white,
-                borderRadius: BorderRadius.circular(25),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.grey.withOpacity(0.1),
-                    spreadRadius: 0,
-                    blurRadius: 5,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    _getCategoryIcon(category),
-                    size: 20,
-                    color: isSelected ? AppColors.white : AppColors.primary,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    category,
-                    style: TextStyle(
-                      color: isSelected ? AppColors.white : AppColors.text,
-                      fontWeight: FontWeight.w500,
-                      fontSize: 14,
+          // Categories horizontal list
+          SizedBox(
+            height: 50,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              itemCount: BikeModel.categories.length,
+              itemBuilder: (context, index) {
+                final category = BikeModel.categories[index];
+                final isSelected = category == _selectedCategory;
+
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedCategory = category;
+                    });
+                    _filterBikes();
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isSelected ? AppColors.primary : AppColors.white,
+                      borderRadius: BorderRadius.circular(25),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.grey.withOpacity(0.1),
+                          spreadRadius: 0,
+                          blurRadius: 5,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          _getCategoryIcon(category),
+                          size: 20,
+                          color: isSelected
+                              ? AppColors.white
+                              : AppColors.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          category,
+                          style: TextStyle(
+                            color: isSelected
+                                ? AppColors.white
+                                : AppColors.text,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
+                );
+              },
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
   }
@@ -233,42 +306,47 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Widget _buildBikesList() {
+  Widget _buildBikesSliver() {
     if (_filteredBikes.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.search_off,
-              size: 64,
-              color: AppColors.grey.withOpacity(0.5),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No bikes found',
-              style: TextStyle(
-                fontSize: 18,
-                color: AppColors.grey,
-                fontWeight: FontWeight.w500,
+      return SliverToBoxAdapter(
+        child: Container(
+          height: 200,
+          alignment: Alignment.center,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.search_off,
+                size: 64,
+                color: AppColors.grey.withOpacity(0.5),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Try adjusting your search or category',
-              style: TextStyle(fontSize: 14, color: AppColors.grey),
-            ),
-          ],
+              const SizedBox(height: 16),
+              Text(
+                'No bikes found',
+                style: TextStyle(
+                  fontSize: 18,
+                  color: AppColors.grey,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Try adjusting your search or category',
+                style: TextStyle(fontSize: 14, color: AppColors.grey),
+              ),
+            ],
+          ),
         ),
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      itemCount: _filteredBikes.length,
-      itemBuilder: (context, index) {
-        return BikeCard(bike: _filteredBikes[index]);
-      },
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate((context, index) {
+          return BikeCard(bike: _filteredBikes[index]);
+        }, childCount: _filteredBikes.length),
+      ),
     );
   }
 

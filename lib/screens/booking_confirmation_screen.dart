@@ -211,8 +211,8 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
                           _buildDetailRow(
                             'Duration',
                             widget.duration == 1
-                                ? '1 Hour'
-                                : '${widget.duration} Hours',
+                                ? '1 Day'
+                                : '${widget.duration} Days',
                             Icons.access_time,
                           ),
                           const SizedBox(height: 12), // Reduced from 16
