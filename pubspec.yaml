@@ -24,3 +24,6 @@ flutter:
   # Assets
   assets:
     - assets/images/
+    - assets/images/cities/
+    - assets/images/banners/
+    - assets/images/bikes/

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
 import '../models/bike_model.dart';
 import '../screens/bike_details_screen.dart';
+import '../utils/city_image_provider.dart';
 
 class BikeCard extends StatelessWidget {
   final BikeModel bike;
@@ -40,18 +41,17 @@ class BikeCard extends StatelessWidget {
             Container(
               height: 180,
               decoration: BoxDecoration(
-                color: AppColors.lightGrey.withOpacity(0.3),
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(20),
                   topRight: Radius.circular(20),
                 ),
               ),
-              child: Center(
-                child: Icon(
-                  Icons.directions_bike,
-                  size: 80,
-                  color: AppColors.primary.withOpacity(0.7),
+              child: ClipRRect(
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(20),
+                  topRight: Radius.circular(20),
                 ),
+                child: _buildBikeImage(),
               ),
             ),
 
@@ -207,6 +207,56 @@ class BikeCard extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBikeImage() {
+    // Try to get image by bike name first, then by type
+    String? imageUrl =
+        CityImageProvider.getBikeImageUrl(bike.name) ??
+        CityImageProvider.getBikeImageByType(bike.type);
+
+    if (imageUrl != null) {
+      return Image.network(
+        imageUrl,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        errorBuilder: (context, error, stackTrace) {
+          return _buildFallbackImage();
+        },
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Container(
+            color: AppColors.lightGrey.withOpacity(0.3),
+            child: Center(
+              child: CircularProgressIndicator(
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded /
+                          loadingProgress.expectedTotalBytes!
+                    : null,
+                color: AppColors.primary,
+                strokeWidth: 3,
+              ),
+            ),
+          );
+        },
+      );
+    } else {
+      return _buildFallbackImage();
+    }
+  }
+
+  Widget _buildFallbackImage() {
+    return Container(
+      color: AppColors.lightGrey.withOpacity(0.3),
+      child: Center(
+        child: Icon(
+          Icons.directions_bike,
+          size: 80,
+          color: AppColors.primary.withOpacity(0.7),
         ),
       ),
     );

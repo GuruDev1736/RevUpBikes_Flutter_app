@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
+import '../utils/city_image_provider.dart';
 
 class ImageSlider extends StatefulWidget {
   final List<SliderItem> items;
@@ -100,7 +101,6 @@ class _ImageSliderState extends State<ImageSlider> {
       margin: const EdgeInsets.symmetric(horizontal: 4),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
-        gradient: item.gradient ?? AppColors.primaryGradient,
         boxShadow: [
           BoxShadow(
             color: AppColors.primary.withOpacity(0.3),
@@ -114,91 +114,165 @@ class _ImageSliderState extends State<ImageSlider> {
         borderRadius: BorderRadius.circular(20),
         child: Stack(
           children: [
-            // Background pattern or image placeholder
-            Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: item.gradient ?? AppColors.primaryGradient,
+            // Background image or gradient
+            _buildSliderBackground(item),
+
+            // Dark overlay for better text readability
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withOpacity(0.1),
+                    Colors.black.withOpacity(0.6),
+                  ],
                 ),
-                child: CustomPaint(painter: PatternPainter()),
               ),
             ),
 
             // Content
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (item.icon != null)
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(12),
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                padding: const EdgeInsets.all(16), // Reduced from 20
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min, // Important: Use minimum size
+                  children: [
+                    if (item.icon != null) ...[
+                      Container(
+                        padding: const EdgeInsets.all(8), // Reduced from 10
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          item.icon!,
+                          color: Colors.white,
+                          size: 20,
+                        ), // Reduced from 24
                       ),
-                      child: Icon(item.icon!, color: Colors.white, size: 24),
-                    ),
-                  if (item.icon != null) const SizedBox(height: 12),
-                  Flexible(
-                    child: Text(
+                      const SizedBox(height: 8), // Reduced from 12
+                    ],
+                    Text(
                       item.title,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 18,
+                        fontSize: 18, // Reduced from 20
                         fontWeight: FontWeight.bold,
+                        shadows: [
+                          Shadow(
+                            color: Colors.black26,
+                            offset: Offset(0, 1),
+                            blurRadius: 3,
+                          ),
+                        ],
                       ),
-                      maxLines: 2,
+                      maxLines: 1, // Reduced from 2 to save space
                       overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  Flexible(
-                    child: Text(
+                    const SizedBox(height: 4), // Reduced from 6
+                    Text(
                       item.subtitle,
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.9),
-                        fontSize: 13,
+                        fontSize: 13, // Reduced from 14
                         fontWeight: FontWeight.w400,
+                        shadows: const [
+                          Shadow(
+                            color: Colors.black26,
+                            offset: Offset(0, 1),
+                            blurRadius: 2,
+                          ),
+                        ],
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  if (item.buttonText != null) ...[
-                    const SizedBox(height: 10),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.3),
-                          width: 1,
+                    if (item.buttonText != null) ...[
+                      const SizedBox(height: 8), // Reduced from 12
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14, // Reduced from 16
+                          vertical: 6, // Reduced from 8
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(
+                            16,
+                          ), // Reduced from 20
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.3),
+                            width: 1,
+                          ),
+                        ),
+                        child: Text(
+                          item.buttonText!,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11, // Reduced from 12
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
-                      child: Text(
-                        item.buttonText!,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildSliderBackground(SliderItem item) {
+    if (item.imageUrl != null && item.imageUrl!.isNotEmpty) {
+      return Image.network(
+        item.imageUrl!,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        errorBuilder: (context, error, stackTrace) {
+          // Fallback to gradient if network image fails
+          return Container(
+            decoration: BoxDecoration(
+              gradient: item.gradient ?? AppColors.primaryGradient,
+            ),
+            child: CustomPaint(painter: PatternPainter()),
+          );
+        },
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Container(
+            decoration: BoxDecoration(
+              gradient: item.gradient ?? AppColors.primaryGradient,
+            ),
+            child: Center(
+              child: CircularProgressIndicator(
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded /
+                          loadingProgress.expectedTotalBytes!
+                    : null,
+                color: Colors.white.withOpacity(0.8),
+                strokeWidth: 3,
+              ),
+            ),
+          );
+        },
+      );
+    } else {
+      // Use gradient and pattern as default
+      return Container(
+        decoration: BoxDecoration(
+          gradient: item.gradient ?? AppColors.primaryGradient,
+        ),
+        child: CustomPaint(painter: PatternPainter()),
+      );
+    }
   }
 
   Widget _buildIndicator(int index) {
@@ -223,6 +297,7 @@ class SliderItem {
   final IconData? icon;
   final String? buttonText;
   final LinearGradient? gradient;
+  final String? imageUrl;
 
   SliderItem({
     required this.title,
@@ -230,6 +305,7 @@ class SliderItem {
     this.icon,
     this.buttonText,
     this.gradient,
+    this.imageUrl,
   });
 }
 
@@ -284,6 +360,7 @@ extension SliderDefaults on ImageSlider {
       subtitle: 'Discover new places with our premium bikes',
       icon: Icons.explore,
       buttonText: 'Start Riding',
+      imageUrl: CityImageProvider.getBannerImageUrl('explore_city'),
       gradient: const LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
@@ -295,6 +372,7 @@ extension SliderDefaults on ImageSlider {
       subtitle: 'Eco-friendly rides for a better tomorrow',
       icon: Icons.electric_bolt,
       buttonText: 'Try Electric',
+      imageUrl: CityImageProvider.getBannerImageUrl('electric_bike'),
       gradient: const LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
@@ -306,6 +384,7 @@ extension SliderDefaults on ImageSlider {
       subtitle: 'Mountain bikes for thrilling experiences',
       icon: Icons.terrain,
       buttonText: 'Book Now',
+      imageUrl: CityImageProvider.getBannerImageUrl('adventure'),
       gradient: const LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
@@ -317,6 +396,7 @@ extension SliderDefaults on ImageSlider {
       subtitle: 'Up to 50% off on weekend rides',
       icon: Icons.local_offer,
       buttonText: 'View Offers',
+      imageUrl: CityImageProvider.getBannerImageUrl('special_offers'),
       gradient: const LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
