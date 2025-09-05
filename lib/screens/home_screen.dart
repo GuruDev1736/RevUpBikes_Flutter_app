@@ -4,6 +4,9 @@ import '../models/bike_model.dart';
 import '../widgets/bike_card.dart';
 import '../components/image_slider.dart';
 import '../components/places_category.dart';
+import 'profile_screen.dart';
+import 'bookmark_screen.dart';
+import 'my_rides_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -83,15 +86,15 @@ class _HomeScreenState extends State<HomeScreen> {
                     autoPlayDuration: const Duration(seconds: 4),
                   ),
 
-                  // Search bar
-                  _buildSearchBar(),
-
                   // Places categories
                   PlacesCategory(
                     places: _placesData,
                     onPlaceSelected: _onPlaceSelected,
                     selectedPlace: _selectedPlace,
                   ),
+
+                  // Search bar
+                  _buildSearchBar(),
 
                   // Bike Categories
                   _buildCategories(),
@@ -143,10 +146,28 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-          CircleAvatar(
-            radius: 25,
-            backgroundColor: AppColors.white.withOpacity(0.2),
-            child: const Icon(Icons.person, color: AppColors.white, size: 30),
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ProfileScreen()),
+              );
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              child: Hero(
+                tag: 'profile_image',
+                child: CircleAvatar(
+                  radius: 25,
+                  backgroundColor: AppColors.white.withOpacity(0.2),
+                  child: const Icon(
+                    Icons.person,
+                    color: AppColors.white,
+                    size: 30,
+                  ),
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -397,12 +418,24 @@ class _HomeScreenState extends State<HomeScreen> {
               break;
             case 1:
               // Navigate to my rides
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const MyRidesScreen()),
+              );
               break;
             case 2:
               // Navigate to bookmarks
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const BookmarkScreen()),
+              );
               break;
             case 3:
               // Navigate to profile
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ProfileScreen()),
+              );
               break;
           }
         },
