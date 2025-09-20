@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
 import '../components/components.dart';
+import '../services/auth_service.dart';
 import 'home_screen.dart';
+import 'forgot_password_screen.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -21,7 +23,9 @@ class _AuthScreenState extends State<AuthScreen>
   final _loginPasswordController = TextEditingController();
 
   // Signup controllers
-  final _signupNameController = TextEditingController();
+  final _signupFirstNameController = TextEditingController();
+  final _signupLastNameController = TextEditingController();
+  final _signupPhoneController = TextEditingController();
   final _signupEmailController = TextEditingController();
   final _signupPasswordController = TextEditingController();
   final _signupConfirmPasswordController = TextEditingController();
@@ -29,6 +33,7 @@ class _AuthScreenState extends State<AuthScreen>
   bool _isLoginPasswordVisible = false;
   bool _isSignupPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -41,6 +46,22 @@ class _AuthScreenState extends State<AuthScreen>
         // This will rebuild the widget to update the progress indicator
       });
     });
+
+    // Load saved credentials
+    _loadSavedCredentials();
+  }
+
+  /// Load saved email and password for auto-fill
+  Future<void> _loadSavedCredentials() async {
+    final savedEmail = await AuthService.getSavedEmail();
+    final savedPassword = await AuthService.getSavedPassword();
+
+    if (savedEmail != null && savedPassword != null) {
+      setState(() {
+        _loginEmailController.text = savedEmail;
+        _loginPasswordController.text = savedPassword;
+      });
+    }
   }
 
   @override
@@ -48,22 +69,121 @@ class _AuthScreenState extends State<AuthScreen>
     _tabController.dispose();
     _loginEmailController.dispose();
     _loginPasswordController.dispose();
-    _signupNameController.dispose();
+    _signupFirstNameController.dispose();
+    _signupLastNameController.dispose();
+    _signupPhoneController.dispose();
     _signupEmailController.dispose();
     _signupPasswordController.dispose();
     _signupConfirmPasswordController.dispose();
     super.dispose();
   }
 
-  void _handleLogin() {
+  Future<void> _handleLogin() async {
     if (_loginFormKey.currentState!.validate()) {
-      _navigateToHome();
+      setState(() {
+        _isLoading = true;
+      });
+
+      try {
+        // Use simple AuthService for login
+        final result = await AuthService.login(
+          _loginEmailController.text.trim(),
+          _loginPasswordController.text,
+        );
+
+        if (mounted) {
+          if (result['STS'] == "200") {
+            final userData = result['CONTENT'];
+            _navigateToHome();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Welcome back, ${userData['fullName']}!'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(result['MSG'] ?? 'Login failed'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
     }
   }
 
-  void _handleSignup() {
+  Future<void> _handleSignup() async {
     if (_signupFormKey.currentState!.validate()) {
-      _navigateToHome();
+      setState(() {
+        _isLoading = true;
+      });
+
+      try {
+        final result = await AuthService.signup(
+          _signupFirstNameController.text.trim(),
+          _signupLastNameController.text.trim(),
+          _signupPhoneController.text.trim(),
+          _signupEmailController.text.trim(),
+          _signupPasswordController.text.trim(),
+          "https://example.com/profile.jpg", // Default profile picture
+        );
+
+        if (mounted) {
+          if (result['STS'] == "200") {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Welcome, ${result['CONTENT']['firstName']}! Account created successfully. Please log in.',
+                ),
+                backgroundColor: Colors.green,
+              ),
+            );
+            _tabController.animateTo(0);
+
+            _loginEmailController.text = _signupEmailController.text;
+            _loginPasswordController.text = _signupPasswordController.text;
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(result['MSG'] ?? 'Signup failed'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
     }
   }
 
@@ -158,13 +278,6 @@ class _AuthScreenState extends State<AuthScreen>
                     ],
                   ),
                 ),
-
-                const SizedBox(height: 30),
-
-                // Enhanced Footer
-                const AuthFooter(),
-
-                const SizedBox(height: 30),
               ],
             ),
           ),
@@ -223,7 +336,11 @@ class _AuthScreenState extends State<AuthScreen>
             alignment: Alignment.centerRight,
             child: TextButton(
               onPressed: () {
-                // Handle forgot password
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const ForgotPasswordScreen(),
+                  ),
+                );
               },
               child: const Text(
                 'Forgot Password?',
@@ -237,7 +354,26 @@ class _AuthScreenState extends State<AuthScreen>
           ),
 
           const SizedBox(height: 20), // Reduced from 30
-          CustomButton(text: 'Login', onPressed: _handleLogin),
+          _isLoading
+              ? Container(
+                  width: double.infinity,
+                  height: 55,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [AppColors.primary, const Color(0xFFD32F2F)],
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Center(
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    ),
+                  ),
+                )
+              : CustomButton(text: 'Login', onPressed: () => _handleLogin()),
         ],
       ),
     );
@@ -249,12 +385,40 @@ class _AuthScreenState extends State<AuthScreen>
       child: Column(
         children: [
           CustomTextField(
-            controller: _signupNameController,
-            label: 'Full Name',
+            controller: _signupFirstNameController,
+            label: 'First Name',
             icon: Icons.person_outline_rounded,
             validator: (value) {
               if (value == null || value.isEmpty) {
-                return 'Please enter your name';
+                return 'Please enter your first name';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16), // Reduced from 20
+          CustomTextField(
+            controller: _signupLastNameController,
+            label: 'Last Name',
+            icon: Icons.person_outline_rounded,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter your last name';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16), // Reduced from 20
+          CustomTextField(
+            controller: _signupPhoneController,
+            label: 'Phone Number',
+            icon: Icons.phone_outlined,
+            keyboardType: TextInputType.phone,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter your phone number';
+              }
+              if (value.length < 10) {
+                return 'Phone number must be at least 10 digits';
               }
               return null;
             },
@@ -322,8 +486,29 @@ class _AuthScreenState extends State<AuthScreen>
             },
           ),
           const SizedBox(height: 25), // Reduced from 35
-          CustomButton(text: 'Create Account', onPressed: _handleSignup),
-
+          _isLoading
+              ? Container(
+                  width: double.infinity,
+                  height: 55,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [AppColors.primary, const Color(0xFFD32F2F)],
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Center(
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    ),
+                  ),
+                )
+              : CustomButton(
+                  text: 'Create Account',
+                  onPressed: () => _handleSignup(),
+                ),
           const SizedBox(height: 15), // Reduced from 20
 
           Text(

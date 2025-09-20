@@ -27,6 +27,42 @@ class BikeModel {
     required this.location,
   });
 
+  factory BikeModel.fromJson(Map<String, dynamic> json) {
+    return BikeModel(
+      id: json['id'],
+      name: json['name'],
+      type: json['type'],
+      category: json['category'],
+      pricePerDay: (json['price_per_day'] as num).toDouble(),
+      rating: (json['rating'] as num).toDouble(),
+      reviewCount: json['review_count'] ?? 0,
+      imageUrl: json['image_url'] ?? '',
+      description: json['description'] ?? '',
+      features: json['features'] != null
+          ? List<String>.from(json['features'])
+          : [],
+      isAvailable: json['is_available'] ?? true,
+      location: json['location'] ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'type': type,
+      'category': category,
+      'price_per_day': pricePerDay,
+      'rating': rating,
+      'review_count': reviewCount,
+      'image_url': imageUrl,
+      'description': description,
+      'features': features,
+      'is_available': isAvailable,
+      'location': location,
+    };
+  }
+
   static List<BikeModel> sampleBikes = [
     BikeModel(
       id: '1',
