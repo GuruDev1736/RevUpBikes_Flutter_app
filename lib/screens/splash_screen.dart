@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
 import 'auth_screen.dart';
+import 'home_screen.dart';
+import '../admin/screens/admin_dashboard_screen.dart';
+import '../services/auth_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -33,34 +36,81 @@ class _SplashScreenState extends State<SplashScreen>
 
     _animationController.forward();
 
-    // Navigate to auth screen after 3 seconds
-    Future.delayed(const Duration(seconds: 3), () {
+    // Check authentication and navigate after 3 seconds
+    Future.delayed(const Duration(seconds: 3), () async {
       if (mounted) {
-        Navigator.of(context).pushReplacement(
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) =>
-                const AuthScreen(),
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) {
-                  const begin = Offset(1.0, 0.0);
-                  const end = Offset.zero;
-                  const curve = Curves.ease;
-
-                  var tween = Tween(
-                    begin: begin,
-                    end: end,
-                  ).chain(CurveTween(curve: curve));
-
-                  return SlideTransition(
-                    position: animation.drive(tween),
-                    child: child,
-                  );
-                },
-            transitionDuration: const Duration(milliseconds: 500),
-          ),
-        );
+        await _checkAuthAndNavigate();
       }
     });
+  }
+
+  Future<void> _checkAuthAndNavigate() async {
+    try {
+      final token = await AuthService.getToken();
+
+      Widget destinationScreen;
+
+      if (token != null) {
+        // User is logged in, check role
+        final isAdmin = await AuthService.isAdmin();
+
+        if (isAdmin) {
+          destinationScreen = const AdminDashboardScreen();
+        } else {
+          destinationScreen = const HomeScreen();
+        }
+      } else {
+        // User not logged in, show auth screen
+        destinationScreen = const AuthScreen();
+      }
+
+      Navigator.of(context).pushReplacement(
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              destinationScreen,
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            const begin = Offset(1.0, 0.0);
+            const end = Offset.zero;
+            const curve = Curves.ease;
+
+            var tween = Tween(
+              begin: begin,
+              end: end,
+            ).chain(CurveTween(curve: curve));
+
+            return SlideTransition(
+              position: animation.drive(tween),
+              child: child,
+            );
+          },
+          transitionDuration: const Duration(milliseconds: 500),
+        ),
+      );
+    } catch (e) {
+      // If there's an error, default to auth screen
+      Navigator.of(context).pushReplacement(
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              const AuthScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            const begin = Offset(1.0, 0.0);
+            const end = Offset.zero;
+            const curve = Curves.ease;
+
+            var tween = Tween(
+              begin: begin,
+              end: end,
+            ).chain(CurveTween(curve: curve));
+
+            return SlideTransition(
+              position: animation.drive(tween),
+              child: child,
+            );
+          },
+          transitionDuration: const Duration(milliseconds: 500),
+        ),
+      );
+    }
   }
 
   @override

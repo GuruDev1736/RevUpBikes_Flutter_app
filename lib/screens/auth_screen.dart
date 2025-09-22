@@ -4,6 +4,7 @@ import '../components/components.dart';
 import '../services/auth_service.dart';
 import 'home_screen.dart';
 import 'forgot_password_screen.dart';
+import '../admin/screens/admin_dashboard_screen.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -187,11 +188,22 @@ class _AuthScreenState extends State<AuthScreen>
     }
   }
 
-  void _navigateToHome() {
+  Future<void> _navigateToHome() async {
+    // Check user role to determine which dashboard to show
+    final isAdmin = await AuthService.isAdmin();
+
+    Widget destinationScreen;
+    if (isAdmin) {
+      // Import the AdminDashboardScreen
+      destinationScreen = const AdminDashboardScreen();
+    } else {
+      destinationScreen = const HomeScreen();
+    }
+
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
-            const HomeScreen(),
+            destinationScreen,
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           const begin = Offset(0.0, 1.0);
           const end = Offset.zero;

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
+import '../services/auth_service.dart';
+import 'auth_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -17,6 +19,11 @@ class _ProfileScreenState extends State<ProfileScreen>
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
   late Animation<double> _scaleAnimation;
+
+  // User data
+  String _userName = 'User';
+  String _userEmail = 'user@revup.com';
+  String _userRole = 'Member';
 
   @override
   void initState() {
@@ -52,7 +59,8 @@ class _ProfileScreenState extends State<ProfileScreen>
       CurvedAnimation(parent: _scaleController, curve: Curves.elasticOut),
     );
 
-    // Start animations
+    // Load user data and start animations
+    _loadUserData();
     _startAnimations();
   }
 
@@ -65,6 +73,32 @@ class _ProfileScreenState extends State<ProfileScreen>
 
     await Future.delayed(const Duration(milliseconds: 300));
     _scaleController.forward();
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      final userData = await AuthService.getUserData();
+      if (userData != null && userData['CONTENT'] != null) {
+        // Determine user role display
+        String role = userData['CONTENT']['role'] ?? 'ROLE_USER';
+        String roleDisplay = 'Member';
+        if (role == 'ROLE_ADMIN') {
+          roleDisplay = 'Administrator';
+        } else if (role == 'ROLE_USER') {
+          roleDisplay = 'Premium Member';
+        }
+
+        setState(() {
+          _userName =
+              '${userData['CONTENT']['fullName'] ?? ''} ${userData['CONTENT']['lastName'] ?? ''}';
+          _userEmail = userData['CONTENT']['userName'] ?? 'user@revup.com';
+          _userRole = roleDisplay;
+        });
+      }
+    } catch (e) {
+      // If error loading user data, keep default values
+      print('Error loading user data: $e');
+    }
   }
 
   @override
@@ -196,9 +230,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                   position: _slideAnimation,
                   child: Column(
                     children: [
-                      const Text(
-                        'John Rider',
-                        style: TextStyle(
+                      Text(
+                        _userName,
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
@@ -206,7 +240,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'john.rider@revup.com',
+                        _userEmail,
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.9),
                           fontSize: 16,
@@ -222,9 +256,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                           color: Colors.white.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Text(
-                          'Premium Member',
-                          style: TextStyle(
+                        child: Text(
+                          _userRole,
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
@@ -548,9 +582,9 @@ class _ProfileScreenState extends State<ProfileScreen>
               child: const Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.pop(context);
-                // Handle logout
+                await _handleLogout();
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
@@ -562,5 +596,88 @@ class _ProfileScreenState extends State<ProfileScreen>
         );
       },
     );
+  }
+
+  Future<void> _handleLogout() async {
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Logging out...'),
+              ],
+            ),
+          );
+        },
+      );
+
+      // Call logout from AuthService
+      await AuthService.logout();
+
+      // Close loading dialog
+      if (mounted) Navigator.pop(context);
+
+      // Navigate to auth screen and clear all previous routes
+      if (mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                const AuthScreen(),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+                  const begin = Offset(1.0, 0.0);
+                  const end = Offset.zero;
+                  const curve = Curves.ease;
+
+                  var tween = Tween(
+                    begin: begin,
+                    end: end,
+                  ).chain(CurveTween(curve: curve));
+
+                  return SlideTransition(
+                    position: animation.drive(tween),
+                    child: child,
+                  );
+                },
+            transitionDuration: const Duration(milliseconds: 500),
+          ),
+          (Route<dynamic> route) => false, // Remove all previous routes
+        );
+
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Successfully logged out'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      // Close loading dialog if still open
+      if (mounted) Navigator.pop(context);
+
+      // Show error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Logout failed: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 }

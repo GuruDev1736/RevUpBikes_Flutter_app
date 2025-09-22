@@ -248,6 +248,27 @@ class AuthService {
     return null;
   }
 
+  /// Get user role from stored data
+  static Future<String?> getUserRole() async {
+    final userData = await getUserData();
+    if (userData != null && userData['CONTENT'] != null) {
+      return userData['CONTENT']['userRole'];
+    }
+    return null;
+  }
+
+  /// Check if user is admin
+  static Future<bool> isAdmin() async {
+    final role = await getUserRole();
+    return role == 'ROLE_ADMIN';
+  }
+
+  /// Check if user is regular user
+  static Future<bool> isUser() async {
+    final role = await getUserRole();
+    return role == 'ROLE_USER';
+  }
+
   /// Save email and password for auto-fill
   static Future<void> _saveCredentials(String email, String password) async {
     final prefs = await SharedPreferences.getInstance();
