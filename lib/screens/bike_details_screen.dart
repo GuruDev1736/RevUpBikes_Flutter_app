@@ -79,24 +79,64 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
               ),
             ],
             flexibleSpace: FlexibleSpaceBar(
-              background: Container(
-                decoration: const BoxDecoration(
-                  gradient: AppColors.primaryGradient,
-                ),
-                child: Center(
-                  child: Container(
-                    margin: const EdgeInsets.all(40),
-                    decoration: BoxDecoration(
-                      color: AppColors.white.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Icon(
-                      Icons.directions_bike,
-                      size: 120,
-                      color: AppColors.white.withOpacity(0.9),
+              background: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Background gradient
+                  Container(
+                    decoration: const BoxDecoration(
+                      gradient: AppColors.primaryGradient,
                     ),
                   ),
-                ),
+                  // Bike image
+                  if (widget.bike.bikeImage.isNotEmpty)
+                    widget.bike.bikeImage.startsWith('http')
+                        ? Image.network(
+                            widget.bike.bikeImage,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return _buildFallbackImage();
+                            },
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return Container(
+                                color: AppColors.primary,
+                                child: Center(
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    value: loadingProgress.expectedTotalBytes != null
+                                        ? loadingProgress.cumulativeBytesLoaded /
+                                            loadingProgress.expectedTotalBytes!
+                                        : null,
+                                  ),
+                                ),
+                              );
+                            },
+                          )
+                        : Image.asset(
+                            widget.bike.bikeImage,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return _buildFallbackImage();
+                            },
+                          )
+                  else
+                    _buildFallbackImage(),
+                  // Overlay for better text visibility
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black.withOpacity(0.3),
+                          Colors.transparent,
+                          Colors.black.withOpacity(0.7),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -1020,5 +1060,27 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
         _fromDateTime != null &&
         _toDateTime != null &&
         widget.bike.isAvailable;
+  }
+
+  Widget _buildFallbackImage() {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: AppColors.primaryGradient,
+      ),
+      child: Center(
+        child: Container(
+          margin: const EdgeInsets.all(40),
+          decoration: BoxDecoration(
+            color: AppColors.white.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Icon(
+            Icons.directions_bike,
+            size: 120,
+            color: AppColors.white.withOpacity(0.9),
+          ),
+        ),
+      ),
+    );
   }
 }

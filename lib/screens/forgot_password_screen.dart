@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
 import '../components/components.dart';
-import '../services/auth_service.dart';
+import '../services/api_services.dart';
 import 'otp_verification_screen.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {

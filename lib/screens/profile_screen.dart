@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
-import '../services/auth_service.dart';
+import '../services/api_services.dart';
 import 'auth_screen.dart';
 
 class ProfileScreen extends StatefulWidget {

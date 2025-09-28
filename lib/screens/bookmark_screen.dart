@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
 import '../models/bike_model.dart';
+import '../models/place_model.dart';
 import 'bike_details_screen.dart';
 
 class BookmarkScreen extends StatefulWidget {
@@ -21,66 +22,84 @@ class _BookmarkScreenState extends State<BookmarkScreen>
   late Animation<double> _scaleAnimation;
 
   // Sample bookmarked bikes - in a real app, this would come from a database
-  List<BikeModel> _bookmarkedBikes = [
+  final List<BikeModel> _bookmarkedBikes = [
     BikeModel(
-      id: '1',
-      name: 'Mountain Explorer',
-      type: 'Mountain',
+      id: 1,
+      bikeName: 'Mountain Explorer',
+      bikeModel: 'MX-2024',
+      brand: 'TrekMaster',
+      bikeImage: 'assets/images/bikes/mountain_bike.jpg',
+      description: 'Perfect mountain bike for adventure trails and rough terrain exploration.',
+      pricePerHour: 50.0,
+      pricePerDay: 399.0,
+      place: Place(
+        id: 1,
+        placeName: 'Mumbai',
+        placeDescription: 'Commercial capital of India',
+        placeImage: 'mumbai.jpg',
+        placeLocation: 'Maharashtra, India',
+        createdAt: DateTime.now(),
+      ),
       category: 'Mountain Bike',
-      pricePerDay: 399,
-      rating: 4.8,
-      reviewCount: 124,
-      location: 'Mumbai',
-      imageUrl: 'assets/images/bikes/mountain_bike.jpg',
-      description:
-          'Perfect mountain bike for adventure trails and rough terrain exploration.',
-      features: [
-        '26" Wheels',
-        'Dual Suspension',
-        'Disc Brakes',
-        'All-Terrain Tires',
-      ],
-      isAvailable: true,
+      engineCapacity: 250,
+      fuelType: 'Electric',
+      transmission: 'Automatic',
+      status: 'AVAILABLE',
+      registrationNumber: 'MH-01-AB-1234',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
     ),
     BikeModel(
-      id: '2',
-      name: 'City Cruiser Pro',
-      type: 'Electric',
+      id: 2,
+      bikeName: 'City Cruiser Pro',
+      bikeModel: 'CC-Pro-2024',
+      brand: 'ElectroRide',
+      bikeImage: 'assets/images/bikes/electric_bike.jpg',
+      description: 'Comfortable electric cruiser ideal for city commuting and leisure rides.',
+      pricePerHour: 40.0,
+      pricePerDay: 299.0,
+      place: Place(
+        id: 2,
+        placeName: 'Delhi',
+        placeDescription: 'Capital city of India',
+        placeImage: 'delhi.jpg',
+        placeLocation: 'New Delhi, India',
+        createdAt: DateTime.now(),
+      ),
       category: 'Cruiser',
-      pricePerDay: 299,
-      rating: 4.6,
-      reviewCount: 89,
-      location: 'Delhi',
-      imageUrl: 'assets/images/bikes/electric_bike.jpg',
-      description:
-          'Comfortable electric cruiser ideal for city commuting and leisure rides.',
-      features: [
-        'Electric Motor',
-        'Long Battery Life',
-        'LED Lights',
-        'Comfortable Seat',
-      ],
-      isAvailable: true,
+      engineCapacity: 200,
+      fuelType: 'Electric',
+      transmission: 'Automatic',
+      status: 'AVAILABLE',
+      registrationNumber: 'DL-01-CD-5678',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
     ),
     BikeModel(
-      id: '3',
-      name: 'Speed Demon',
-      type: 'Sports',
+      id: 3,
+      bikeName: 'Speed Demon',
+      bikeModel: 'SD-Sport-2024',
+      brand: 'RacerTech',
+      bikeImage: 'assets/images/bikes/sports_bike.jpg',
+      description: 'High-performance sports bike designed for speed enthusiasts and racing.',
+      pricePerHour: 75.0,
+      pricePerDay: 599.0,
+      place: Place(
+        id: 3,
+        placeName: 'Bangalore',
+        placeDescription: 'Silicon Valley of India',
+        placeImage: 'bangalore.jpg',
+        placeLocation: 'Karnataka, India',
+        createdAt: DateTime.now(),
+      ),
       category: 'Sports Bike',
-      pricePerDay: 599,
-      rating: 4.9,
-      reviewCount: 156,
-      location: 'Bangalore',
-      imageUrl: 'assets/images/bikes/sports_bike.jpg',
-      description:
-          'High-performance sports bike designed for speed enthusiasts and racing.',
-      features: [
-        'Racing Tires',
-        'Aerodynamic Design',
-        'Performance Brakes',
-        'Carbon Fiber',
-      ],
-      isAvailable: false,
+      engineCapacity: 600,
+      fuelType: 'Petrol',
+      transmission: 'Manual',
+      status: 'RENTED',
+      registrationNumber: 'KA-01-EF-9012',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
     ),
   ];
 
@@ -141,7 +160,7 @@ class _BookmarkScreenState extends State<BookmarkScreen>
     super.dispose();
   }
 
-  void _removeBookmark(String bikeId) {
+  void _removeBookmark(int bikeId) {
     setState(() {
       _bookmarkedBikes.removeWhere((bike) => bike.id == bikeId);
     });
@@ -428,12 +447,60 @@ class _BookmarkScreenState extends State<BookmarkScreen>
                     color: AppColors.lightGrey.withOpacity(0.3),
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Center(
-                    child: Icon(
-                      Icons.directions_bike,
-                      size: 40,
-                      color: AppColors.primary.withOpacity(0.7),
-                    ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: bike.bikeImage.isNotEmpty
+                        ? (bike.bikeImage.startsWith('http')
+                            ? Image.network(
+                                bike.bikeImage,
+                                fit: BoxFit.cover,
+                                width: 80,
+                                height: 80,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Center(
+                                    child: Icon(
+                                      Icons.directions_bike,
+                                      size: 40,
+                                      color: AppColors.primary.withOpacity(0.7),
+                                    ),
+                                  );
+                                },
+                                loadingBuilder: (context, child, loadingProgress) {
+                                  if (loadingProgress == null) return child;
+                                  return Center(
+                                    child: SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: AppColors.primary,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              )
+                            : Image.asset(
+                                bike.bikeImage,
+                                fit: BoxFit.cover,
+                                width: 80,
+                                height: 80,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Center(
+                                    child: Icon(
+                                      Icons.directions_bike,
+                                      size: 40,
+                                      color: AppColors.primary.withOpacity(0.7),
+                                    ),
+                                  );
+                                },
+                              ))
+                        : Center(
+                            child: Icon(
+                              Icons.directions_bike,
+                              size: 40,
+                              color: AppColors.primary.withOpacity(0.7),
+                            ),
+                          ),
                   ),
                 ),
 

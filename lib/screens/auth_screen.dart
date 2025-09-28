@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
 import '../components/components.dart';
-import '../services/auth_service.dart';
+import '../services/api_services.dart';
 import 'home_screen.dart';
 import 'forgot_password_screen.dart';
 import '../admin/screens/admin_dashboard_screen.dart';

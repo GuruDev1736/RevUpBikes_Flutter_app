@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
 import '../models/bike_model.dart';
+import '../models/place_model.dart';
 import '../widgets/bike_card.dart';
 import '../components/image_slider.dart';
 import '../components/places_category.dart';
+import '../services/api_services.dart';
 import 'profile_screen.dart';
 import 'bookmark_screen.dart';
 import 'my_rides_screen.dart';
@@ -18,14 +20,15 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _selectedCategory = 'All';
-  String? _selectedPlace;
-  List<BikeModel> _filteredBikes = BikeModel.sampleBikes;
-  List<PlaceCategory> _placesData = PlaceCategory.samplePlaces;
+  Place? _selectedPlace;
+  List<BikeModel> _allBikes = [];
+  List<BikeModel> _filteredBikes = [];
+  bool _isLoadingBikes = false;
 
   @override
   void initState() {
     super.initState();
-    _filteredBikes = BikeModel.sampleBikes;
+    _loadBikes();
   }
 
   @override
@@ -34,9 +37,55 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  Future<void> _loadBikes() async {
+    setState(() {
+      _isLoadingBikes = true;
+    });
+
+    try {
+      Map<String, dynamic> response;
+      
+      if (_selectedPlace != null) {
+        // Get bikes filtered by place
+        response = await AuthService.getBikesByPlace(_selectedPlace!.id);
+      } else {
+        // Get all bikes
+        response = await AuthService.getAllBikes();
+      }
+
+      if (response['STS'] == '200' && response['CONTENT'] != null) {
+        final List<dynamic> bikesJson = response['CONTENT'];
+        final List<BikeModel> bikes = bikesJson
+            .map((json) => BikeModel.fromJson(json))
+            .toList();
+        
+        setState(() {
+          _allBikes = bikes;
+          _filteredBikes = bikes;
+          _isLoadingBikes = false;
+        });
+        
+        _filterBikes(); // Apply current filters
+      } else {
+        setState(() {
+          _allBikes = [];
+          _filteredBikes = [];
+          _isLoadingBikes = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _allBikes = [];
+        _filteredBikes = [];
+        _isLoadingBikes = false;
+      });
+      print('Error loading bikes: $e');
+    }
+  }
+
   void _filterBikes() {
     setState(() {
-      _filteredBikes = BikeModel.sampleBikes.where((bike) {
+      _filteredBikes = _allBikes.where((bike) {
         bool matchesCategory =
             _selectedCategory == 'All' || bike.category == _selectedCategory;
         bool matchesSearch =
@@ -46,23 +95,24 @@ class _HomeScreenState extends State<HomeScreen> {
             bike.type.toLowerCase().contains(
               _searchController.text.toLowerCase(),
             );
-        bool matchesPlace =
-            _selectedPlace == null || bike.location == _selectedPlace;
-        return matchesCategory && matchesSearch && matchesPlace;
+        // Place filtering is now handled by API call in _loadBikes
+        return matchesCategory && matchesSearch;
       }).toList();
     });
   }
 
-  void _onPlaceSelected(String placeName) {
+  void _onPlaceSelected(Place place) {
     setState(() {
-      // If the same place is selected again, deselect it (clear filter)
-      if (_selectedPlace == placeName) {
+      // If the same place is selected again, deselect it (show all bikes)
+      if (_selectedPlace?.id == place.id) {
         _selectedPlace = null;
       } else {
-        _selectedPlace = placeName;
+        _selectedPlace = place;
       }
     });
-    _filterBikes();
+    
+    // Reload bikes based on selected place
+    _loadBikes();
   }
 
   @override
@@ -86,9 +136,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     autoPlayDuration: const Duration(seconds: 4),
                   ),
 
-                  // Places categories
-                  PlacesCategory(
-                    places: _placesData,
+                  // Places categories (API-powered)
+                  ApiPlacesCategory(
                     onPlaceSelected: _onPlaceSelected,
                     selectedPlace: _selectedPlace,
                   ),
@@ -328,6 +377,31 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildBikesSliver() {
+    if (_isLoadingBikes) {
+      return SliverToBoxAdapter(
+        child: Container(
+          height: 200,
+          alignment: Alignment.center,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(
+                _selectedPlace != null 
+                    ? 'Loading bikes in ${_selectedPlace!.placeName}...'
+                    : 'Loading bikes...',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: AppColors.grey,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     if (_filteredBikes.isEmpty) {
       return SliverToBoxAdapter(
         child: Container(
@@ -343,7 +417,9 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 16),
               Text(
-                'No bikes found',
+                _selectedPlace != null 
+                    ? 'No bikes found in ${_selectedPlace!.placeName}'
+                    : 'No bikes found',
                 style: TextStyle(
                   fontSize: 18,
                   color: AppColors.grey,
@@ -352,7 +428,9 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Try adjusting your search or category',
+                _selectedPlace != null
+                    ? 'Try selecting a different place'
+                    : 'Try adjusting your search or category',
                 style: TextStyle(fontSize: 14, color: AppColors.grey),
               ),
             ],

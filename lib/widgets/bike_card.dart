@@ -213,37 +213,51 @@ class BikeCard extends StatelessWidget {
   }
 
   Widget _buildBikeImage() {
-    // Try to get image by bike name first, then by type
-    String? imageUrl =
-        CityImageProvider.getBikeImageUrl(bike.name) ??
-        CityImageProvider.getBikeImageByType(bike.type);
+    // Use the bike image from API first, then fallback to predefined images
+    String? imageUrl = bike.bikeImage.isNotEmpty ? bike.bikeImage : 
+        (CityImageProvider.getBikeImageUrl(bike.name) ??
+        CityImageProvider.getBikeImageByType(bike.type));
 
-    if (imageUrl != null) {
-      return Image.network(
-        imageUrl,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-        errorBuilder: (context, error, stackTrace) {
-          return _buildFallbackImage();
-        },
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return Container(
-            color: AppColors.lightGrey.withOpacity(0.3),
-            child: Center(
-              child: CircularProgressIndicator(
-                value: loadingProgress.expectedTotalBytes != null
-                    ? loadingProgress.cumulativeBytesLoaded /
-                          loadingProgress.expectedTotalBytes!
-                    : null,
-                color: AppColors.primary,
-                strokeWidth: 3,
+    if (imageUrl != null && imageUrl.isNotEmpty) {
+      // Check if it's a network URL or local asset
+      if (imageUrl.startsWith('http')) {
+        return Image.network(
+          imageUrl,
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+          errorBuilder: (context, error, stackTrace) {
+            return _buildFallbackImage();
+          },
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return Container(
+              color: AppColors.lightGrey.withOpacity(0.3),
+              child: Center(
+                child: CircularProgressIndicator(
+                  value: loadingProgress.expectedTotalBytes != null
+                      ? loadingProgress.cumulativeBytesLoaded /
+                            loadingProgress.expectedTotalBytes!
+                      : null,
+                  color: AppColors.primary,
+                  strokeWidth: 3,
+                ),
               ),
-            ),
-          );
-        },
-      );
+            );
+          },
+        );
+      } else {
+        // Handle local asset images
+        return Image.asset(
+          imageUrl,
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+          errorBuilder: (context, error, stackTrace) {
+            return _buildFallbackImage();
+          },
+        );
+      }
     } else {
       return _buildFallbackImage();
     }
