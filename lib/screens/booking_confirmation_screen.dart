@@ -7,12 +7,16 @@ class BookingConfirmationScreen extends StatefulWidget {
   final BikeModel bike;
   final int duration;
   final double totalCost;
+  final String? paymentId;
+  final String? orderId;
 
   const BookingConfirmationScreen({
     super.key,
     required this.bike,
     required this.duration,
     required this.totalCost,
+    this.paymentId,
+    this.orderId,
   });
 
   @override

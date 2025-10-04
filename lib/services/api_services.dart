@@ -39,8 +39,9 @@ class AuthService {
   /// Returns Map with 'success', 'message', and user data if successful
   static Future<Map<String, dynamic>> login(
     String email,
-    String password,
-  ) async {
+    String password, {
+    bool saveCredentials = true,
+  }) async {
     try {
       final response = await _dio.post(
         '/api/auth/login',
@@ -50,8 +51,10 @@ class AuthService {
       if (response.statusCode == 200 && response.data['STS'] == '200') {
         final userData = response.data;
         await _saveAuthData(userData);
-        // Save email and password for auto-fill
-        await _saveCredentials(email, password);
+        // Save email and password for auto-fill only if requested
+        if (saveCredentials) {
+          await _saveCredentials(email, password);
+        }
         return userData;
       } else {
         return {'MSG': response.data['MSG'] ?? 'Login failed'};
@@ -268,6 +271,26 @@ class AuthService {
   }
 
 
+ static Future<Map<String, dynamic>> uploadFile(String fileName , String fileData , String userId) async {
+    try {
+      final response = await _dio.post('/api/upload',
+      data: {
+        "fileName": fileName,
+        "fileData": fileData,
+        "userId": userId,
+      });
+  
+      if (response.statusCode == 200 && response.data['STS'] == '200') {
+        return response.data;
+      } else {
+        return {'MSG': response.data['MSG'] ?? 'Failed to upload file'};
+      }
+    } on DioException catch (e) {
+      return _handleAuthenticatedError(e, 'Failed to upload file');
+    } catch (e) {
+      return {'MSG': 'An unexpected error occurred'};
+    }
+  }
 
 
 
@@ -388,6 +411,14 @@ class AuthService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_emailKey);
     await prefs.remove(_passwordKey);
+    print('🧹 Saved credentials cleared');
+  }
+
+  /// Check if credentials are saved
+  static Future<bool> hasCredentialsSaved() async {
+    final email = await getSavedEmail();
+    final password = await getSavedPassword();
+    return email != null && password != null && email.isNotEmpty && password.isNotEmpty;
   }
 
   /// Update the stored auth token
@@ -457,6 +488,14 @@ class AuthService {
     await prefs.remove(_emailKey);
     await prefs.remove(_passwordKey);
     print('🚪 User logged out successfully');
+  }
+
+  /// Clear only authentication tokens and user data, preserve saved credentials
+  static Future<void> clearAuthData() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_tokenKey);
+    await prefs.remove(_userDataKey);
+    print('🔄 Auth data cleared, credentials preserved');
   }
 }
 

@@ -16,6 +16,8 @@ dependencies:
   logger: ^2.0.2+1
   get_it: ^7.6.4
   shared_preferences: ^2.2.2
+  razorpay_flutter: ^1.4.0
+  path: ^1.8.3
 
 dev_dependencies:
   flutter_test:

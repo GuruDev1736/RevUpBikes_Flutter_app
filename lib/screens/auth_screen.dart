@@ -35,6 +35,7 @@ class _AuthScreenState extends State<AuthScreen>
   bool _isSignupPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
   bool _isLoading = false;
+  bool _saveCredentials = true; // Default to true for convenience
 
   @override
   void initState() {
@@ -61,6 +62,11 @@ class _AuthScreenState extends State<AuthScreen>
       setState(() {
         _loginEmailController.text = savedEmail;
         _loginPasswordController.text = savedPassword;
+        _saveCredentials = true; // Set checkbox to true if credentials are loaded
+      });
+    } else {
+      setState(() {
+        _saveCredentials = false; // Set checkbox to false if no credentials saved
       });
     }
   }
@@ -90,16 +96,25 @@ class _AuthScreenState extends State<AuthScreen>
         final result = await AuthService.login(
           _loginEmailController.text.trim(),
           _loginPasswordController.text,
+          saveCredentials: _saveCredentials,
         );
 
         if (mounted) {
           if (result['STS'] == "200") {
             final userData = result['CONTENT'];
+            
+            // Show appropriate message based on credential saving
+            String welcomeMessage = 'Welcome back, ${userData['fullName']}!';
+            if (_saveCredentials) {
+              welcomeMessage += ' Credentials saved for next time.';
+            }
+            
             _navigateToHome();
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Welcome back, ${userData['fullName']}!'),
+                content: Text(welcomeMessage),
                 backgroundColor: Colors.green,
+                duration: const Duration(seconds: 3),
               ),
             );
           } else {
@@ -363,6 +378,42 @@ class _AuthScreenState extends State<AuthScreen>
                 ),
               ),
             ),
+          ),
+
+          // Save credentials checkbox
+          Row(
+            children: [
+              Checkbox(
+                value: _saveCredentials,
+                onChanged: (value) {
+                  setState(() {
+                    _saveCredentials = value ?? true;
+                  });
+                  // If user unchecks, clear saved credentials immediately
+                  if (!(value ?? true)) {
+                    AuthService.clearSavedCredentials();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: const Text('Saved credentials cleared'),
+                        backgroundColor: AppColors.primary,
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                },
+                activeColor: AppColors.primary,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              Expanded(
+                child: Text(
+                  'Remember my credentials for faster login',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ],
           ),
 
           const SizedBox(height: 20), // Reduced from 30

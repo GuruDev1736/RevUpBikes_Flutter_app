@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
 import 'auth_screen.dart';
-import 'home_screen.dart';
-import '../admin/screens/admin_dashboard_screen.dart';
 import '../services/api_services.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -17,6 +15,9 @@ class _SplashScreenState extends State<SplashScreen>
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
+
+  // Note: This app now requires login on every app launch
+  // No persistent authentication - users must login each time
 
   @override
   void initState() {
@@ -36,81 +37,40 @@ class _SplashScreenState extends State<SplashScreen>
 
     _animationController.forward();
 
-    // Check authentication and navigate after 3 seconds
+    // Clear stored auth data and navigate to auth screen after 3 seconds
     Future.delayed(const Duration(seconds: 3), () async {
       if (mounted) {
-        await _checkAuthAndNavigate();
+        // Clear authentication tokens but preserve saved credentials for convenience
+        await AuthService.clearAuthData();
+        _navigateToAuth();
       }
     });
   }
 
-  Future<void> _checkAuthAndNavigate() async {
-    try {
-      final token = await AuthService.getToken();
+  void _navigateToAuth() {
+    // Always navigate to auth screen - no persistent login
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            const AuthScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(1.0, 0.0);
+          const end = Offset.zero;
+          const curve = Curves.ease;
 
-      Widget destinationScreen;
+          var tween = Tween(
+            begin: begin,
+            end: end,
+          ).chain(CurveTween(curve: curve));
 
-      if (token != null) {
-        // User is logged in, check role
-        final isAdmin = await AuthService.isAdmin();
-
-        if (isAdmin) {
-          destinationScreen = const AdminDashboardScreen();
-        } else {
-          destinationScreen = const HomeScreen();
-        }
-      } else {
-        // User not logged in, show auth screen
-        destinationScreen = const AuthScreen();
-      }
-
-      Navigator.of(context).pushReplacement(
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              destinationScreen,
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            const begin = Offset(1.0, 0.0);
-            const end = Offset.zero;
-            const curve = Curves.ease;
-
-            var tween = Tween(
-              begin: begin,
-              end: end,
-            ).chain(CurveTween(curve: curve));
-
-            return SlideTransition(
-              position: animation.drive(tween),
-              child: child,
-            );
-          },
-          transitionDuration: const Duration(milliseconds: 500),
-        ),
-      );
-    } catch (e) {
-      // If there's an error, default to auth screen
-      Navigator.of(context).pushReplacement(
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              const AuthScreen(),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            const begin = Offset(1.0, 0.0);
-            const end = Offset.zero;
-            const curve = Curves.ease;
-
-            var tween = Tween(
-              begin: begin,
-              end: end,
-            ).chain(CurveTween(curve: curve));
-
-            return SlideTransition(
-              position: animation.drive(tween),
-              child: child,
-            );
-          },
-          transitionDuration: const Duration(milliseconds: 500),
-        ),
-      );
-    }
+          return SlideTransition(
+            position: animation.drive(tween),
+            child: child,
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 500),
+      ),
+    );
   }
 
   @override

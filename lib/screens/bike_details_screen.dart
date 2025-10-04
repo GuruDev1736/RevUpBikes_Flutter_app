@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'dart:io';
+import 'dart:convert';
+import 'package:path/path.dart' as path;
 import '../utils/app_colors.dart';
 import '../models/bike_model.dart';
+import '../services/api_services.dart';
 import 'booking_confirmation_screen.dart';
 
 class BikeDetailsScreen extends StatefulWidget {
@@ -21,6 +25,18 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
   File? _aadharCardImage;
   File? _drivingLicenseImage;
   final ImagePicker _picker = ImagePicker();
+  
+  // Uploaded file URLs (will be populated after successful upload)
+  String? _aadharCardUrl;
+  String? _drivingLicenseUrl;
+  
+  // Upload loading states
+  bool _isUploadingAadhar = false;
+  bool _isUploadingLicense = false;
+
+  // Razorpay integration
+  late Razorpay _razorpay;
+  bool _isProcessingPayment = false;
 
   // Date and time variables
   DateTime? _fromDateTime;
@@ -37,6 +53,130 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
   double get _totalCost {
     return widget.bike.pricePerDay * _calculatedDays;
   }
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeRazorpay();
+  }
+
+  @override
+  void dispose() {
+    _razorpay.clear();
+    super.dispose();
+  }
+
+  void _initializeRazorpay() {
+    _razorpay = Razorpay();
+    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
+    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
+    _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
+  }
+
+  void _handlePaymentSuccess(PaymentSuccessResponse response) {
+    setState(() {
+      _isProcessingPayment = false;
+    });
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Payment Successful! Payment ID: ${response.paymentId}'),
+        backgroundColor: AppColors.success,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
+    // Navigate to booking confirmation
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => BookingConfirmationScreen(
+          bike: widget.bike,
+          duration: _calculatedDays,
+          totalCost: _totalCost,
+          paymentId: response.paymentId,
+          orderId: response.orderId,
+        ),
+      ),
+    );
+  }
+
+  void _handlePaymentError(PaymentFailureResponse response) {
+    setState(() {
+      _isProcessingPayment = false;
+    });
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Payment Failed: ${response.message}'),
+        backgroundColor: AppColors.error,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
+
+  void _handleExternalWallet(ExternalWalletResponse response) {
+    setState(() {
+      _isProcessingPayment = false;
+    });
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('External Wallet Selected: ${response.walletName}'),
+        backgroundColor: AppColors.primary,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  /// Convert file to base64 string
+  Future<String> _fileToBase64(File file) async {
+    final bytes = await file.readAsBytes();
+    return base64Encode(bytes);
+  }
+
+  /// Get user ID from stored user data
+  Future<String?> _getUserId() async {
+    final userData = await AuthService.getUserData();
+    if (userData != null && userData['CONTENT'] != null) {
+      return userData['CONTENT']['userId']?.toString();
+    }
+    return null;
+  }
+
+  /// Upload file and return the URL
+  Future<String?> _uploadFileAndGetUrl(File file, String documentType) async {
+    try {
+      // Get file name
+      final fileName = path.basename(file.path);
+      
+      // Convert to base64
+      final base64Data = await _fileToBase64(file);
+      
+      // Get user ID
+      final userId = await _getUserId();
+      if (userId == null) {
+        throw Exception('User ID not found. Please login again.');
+      }
+
+      // Upload file
+      final result = await AuthService.uploadFile(fileName, base64Data, userId);
+      
+      if (result['STS'] == '200' && result['CONTENT'] != null) {
+        // Extract URL from response - adjust based on your API response structure
+        final fileUrl = result['CONTENT'];
+        return fileUrl;
+      } else {
+        throw Exception(result['MSG'] ?? 'Upload failed');
+      }
+    } catch (e) {
+      print('Upload error: $e');
+      return null;
+    }
+  }
+
+  
 
   @override
   Widget build(BuildContext context) {
@@ -484,10 +624,12 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
     // Validate required fields
     if (!_canProceedWithBooking()) {
       String message = '';
-      if (_aadharCardImage == null || _drivingLicenseImage == null) {
+      if (_aadharCardUrl == null || _drivingLicenseUrl == null) {
         message = 'Please upload both Aadhar card and driving license';
       } else if (_fromDateTime == null || _toDateTime == null) {
         message = 'Please select booking dates and times';
+      } else if (_isUploadingAadhar || _isUploadingLicense) {
+        message = 'Please wait for document upload to complete';
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -500,38 +642,63 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
       return;
     }
 
-    // Simulate booking process
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
-            ),
-            const SizedBox(height: 16),
-            const Text('Processing your booking...'),
-          ],
-        ),
-      ),
-    );
+    // Initiate Razorpay payment
+    _initiatePayment();
+  }
 
-    // Navigate to confirmation after 2 seconds
-    Future.delayed(const Duration(seconds: 2), () {
-      Navigator.of(context).pop(); // Close loading dialog
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => BookingConfirmationScreen(
-            bike: widget.bike,
-            duration: _calculatedDays,
-            totalCost: _totalCost,
-          ),
+  Future<void> _initiatePayment() async {
+    setState(() {
+      _isProcessingPayment = true;
+    });
+
+    try {
+      // Get user data for payment
+      final userData = await AuthService.getUserData();
+      final userContent = userData?['CONTENT'];
+      
+      // Calculate amount in paise (multiply by 100 for Razorpay)
+      final amountInPaise = (_totalCost * 100).toInt();
+      
+      var options = {
+        'key': 'rzp_test_RPNxiQLJkGE7GO', // You'll replace this with actual key
+        'amount': amountInPaise,
+        'name': 'RevUp Bikes',
+        'description': 'Bike Rental - ${widget.bike.bikeName}',
+        'order_id': '', // Generate from backend if needed
+        'timeout': 300, // 5 minutes timeout
+        'prefill': {
+          'contact': userContent?['phoneNumber'] ?? '',
+          'email': userContent?['userName'] ?? '',
+          'name': '${userContent?['fullName'] ?? ''}',
+        },
+        'theme': {
+          'color': '#D32F2F', // AppColors.primary equivalent
+        },
+        'notes': {
+          'bike_id': widget.bike.id.toString(),
+          'bike_name': widget.bike.bikeName,
+          'duration_days': _calculatedDays.toString(),
+          'from_date': _fromDateTime?.toIso8601String() ?? '',
+          'to_date': _toDateTime?.toIso8601String() ?? '',
+          'aadhar_url': _aadharCardUrl ?? '',
+          'license_url': _drivingLicenseUrl ?? '',
+        }
+      };
+
+      _razorpay.open(options);
+    } catch (e) {
+      setState(() {
+        _isProcessingPayment = false;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error initiating payment: ${e.toString()}'),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
         ),
       );
-    });
+    }
   }
 
   Widget _buildDateTimeSelection() {
@@ -680,6 +847,8 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
                 icon: Icons.credit_card,
                 image: _aadharCardImage,
                 onTap: () => _pickDocument(true),
+                isUploading: _isUploadingAadhar,
+                hasUrl: _aadharCardUrl != null,
               ),
             ),
             const SizedBox(width: 12),
@@ -690,6 +859,8 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
                 icon: Icons.drive_eta,
                 image: _drivingLicenseImage,
                 onTap: () => _pickDocument(false),
+                isUploading: _isUploadingLicense,
+                hasUrl: _drivingLicenseUrl != null,
               ),
             ),
           ],
@@ -704,6 +875,8 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
     required IconData icon,
     required File? image,
     required VoidCallback onTap,
+    bool isUploading = false,
+    bool hasUrl = false,
   }) {
     bool hasImage = image != null;
 
@@ -713,12 +886,22 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
         height: 120,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: hasImage
+          color: hasUrl 
               ? AppColors.success.withOpacity(0.05)
-              : AppColors.white,
+              : isUploading
+                  ? AppColors.primary.withOpacity(0.05)
+                  : hasImage
+                      ? AppColors.lightGrey.withOpacity(0.3)
+                      : AppColors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: hasImage ? AppColors.success : AppColors.lightGrey,
+            color: hasUrl 
+                ? AppColors.success 
+                : isUploading 
+                    ? AppColors.primary
+                    : hasImage 
+                        ? AppColors.primary.withOpacity(0.5)
+                        : AppColors.lightGrey,
           ),
           boxShadow: [
             BoxShadow(
@@ -732,15 +915,38 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (hasImage)
+            if (isUploading)
+              Column(
+                children: [
+                  SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 3,
+                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Uploading...',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              )
+            else if (hasUrl)
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.check_circle, color: AppColors.success, size: 24),
+                  Icon(Icons.cloud_done, color: AppColors.success, size: 24),
                   const SizedBox(width: 8),
                   const Expanded(
                     child: Text(
-                      'Uploaded',
+                      'Uploaded Successfully',
                       style: TextStyle(
                         fontSize: 12,
                         color: AppColors.success,
@@ -751,18 +957,42 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
                   ),
                 ],
               )
+            else if (hasImage)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.check_circle, color: AppColors.primary, size: 24),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Selected',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
+              )
             else
               Icon(icon, color: AppColors.primary, size: 32),
             const SizedBox(height: 8),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: hasImage ? AppColors.success : AppColors.text,
+            if (!isUploading) // Don't show title when uploading (already shown in progress)
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: hasUrl 
+                      ? AppColors.success 
+                      : hasImage 
+                          ? AppColors.primary
+                          : AppColors.text,
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
-            ),
             if (!hasImage) ...[
               const SizedBox(height: 4),
               Text(
@@ -987,21 +1217,66 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
           setState(() {
             if (isAadhar) {
               _aadharCardImage = file;
+              _isUploadingAadhar = true;
             } else {
               _drivingLicenseImage = file;
+              _isUploadingLicense = true;
             }
           });
 
-          // Show success message
+          // Show initial success message
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                '${isAadhar ? 'Aadhar card' : 'Driving license'} uploaded successfully',
+                '${isAadhar ? 'Aadhar card' : 'Driving license'} selected. Uploading...',
               ),
-              backgroundColor: AppColors.success,
+              backgroundColor: AppColors.primary,
               behavior: SnackBarBehavior.floating,
             ),
           );
+
+          // Upload the file and get URL
+          final uploadedUrl = await _uploadFileAndGetUrl(
+            file, 
+            isAadhar ? 'aadhar' : 'license'
+          );
+          
+          setState(() {
+            if (isAadhar) {
+              _isUploadingAadhar = false;
+              if (uploadedUrl != null) {
+                _aadharCardUrl = uploadedUrl;
+              }
+            } else {
+              _isUploadingLicense = false;
+              if (uploadedUrl != null) {
+                _drivingLicenseUrl = uploadedUrl;
+              }
+            }
+          });
+
+          // Show final success/error message
+          if (uploadedUrl != null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  '${isAadhar ? 'Aadhar card' : 'Driving license'} uploaded successfully!',
+                ),
+                backgroundColor: AppColors.success,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Failed to upload ${isAadhar ? 'Aadhar card' : 'driving license'}. Please try again.',
+                ),
+                backgroundColor: AppColors.error,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
         } else {
           throw Exception('Selected file could not be accessed');
         }
@@ -1055,12 +1330,21 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
   }
 
   bool _canProceedWithBooking() {
-    return _aadharCardImage != null &&
-        _drivingLicenseImage != null &&
+    return _aadharCardUrl != null &&
+        _drivingLicenseUrl != null &&
         _fromDateTime != null &&
         _toDateTime != null &&
-        widget.bike.isAvailable;
+        widget.bike.isAvailable &&
+        !_isUploadingAadhar &&
+        !_isUploadingLicense &&
+        !_isProcessingPayment;
   }
+
+  /// Get the uploaded Aadhar card URL for booking API
+  String? get aadharCardUrl => _aadharCardUrl;
+  
+  /// Get the uploaded driving license URL for booking API
+  String? get drivingLicenseUrl => _drivingLicenseUrl;
 
   Widget _buildFallbackImage() {
     return Container(
