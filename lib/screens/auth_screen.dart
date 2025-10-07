@@ -62,11 +62,13 @@ class _AuthScreenState extends State<AuthScreen>
       setState(() {
         _loginEmailController.text = savedEmail;
         _loginPasswordController.text = savedPassword;
-        _saveCredentials = true; // Set checkbox to true if credentials are loaded
+        _saveCredentials =
+            true; // Set checkbox to true if credentials are loaded
       });
     } else {
       setState(() {
-        _saveCredentials = false; // Set checkbox to false if no credentials saved
+        _saveCredentials =
+            false; // Set checkbox to false if no credentials saved
       });
     }
   }
@@ -102,13 +104,13 @@ class _AuthScreenState extends State<AuthScreen>
         if (mounted) {
           if (result['STS'] == "200") {
             final userData = result['CONTENT'];
-            
+
             // Show appropriate message based on credential saving
             String welcomeMessage = 'Welcome back, ${userData['fullName']}!';
             if (_saveCredentials) {
               welcomeMessage += ' Credentials saved for next time.';
             }
-            
+
             _navigateToHome();
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(

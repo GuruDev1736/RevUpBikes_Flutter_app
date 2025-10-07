@@ -36,13 +36,13 @@ class _ApiPlacesCategoryState extends State<ApiPlacesCategory> {
       });
 
       final response = await AuthService.getAllPlaces();
-      
+
       if (response['STS'] == '200' && response['CONTENT'] != null) {
         final List<dynamic> placesJson = response['CONTENT'];
         final List<Place> places = placesJson
             .map((json) => Place.fromJson(json))
             .toList();
-        
+
         setState(() {
           _places = places;
           _isLoading = false;
@@ -86,26 +86,8 @@ class _ApiPlacesCategoryState extends State<ApiPlacesCategory> {
                 const Spacer(),
                 IconButton(
                   onPressed: _loadPlaces,
-                  icon: Icon(
-                    Icons.refresh,
-                    color: AppColors.primary,
-                    size: 20,
-                  ),
+                  icon: Icon(Icons.refresh, color: AppColors.primary, size: 20),
                   tooltip: 'Refresh places',
-                ),
-                TextButton(
-                  onPressed: () {
-                    // Navigate to all places screen
-                    // TODO: Implement navigation to places screen
-                  },
-                  child: const Text(
-                    'View All',
-                    style: TextStyle(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
-                  ),
                 ),
               ],
             ),
@@ -150,9 +132,7 @@ class _ApiPlacesCategoryState extends State<ApiPlacesCategory> {
               color: AppColors.grey.withOpacity(0.3),
               borderRadius: BorderRadius.circular(16),
             ),
-            child: const Center(
-              child: CircularProgressIndicator(),
-            ),
+            child: const Center(child: CircularProgressIndicator()),
           );
         },
       ),
@@ -187,7 +167,10 @@ class _ApiPlacesCategoryState extends State<ApiPlacesCategory> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
               ),
             ),
           ],
@@ -222,7 +205,10 @@ class _ApiPlacesCategoryState extends State<ApiPlacesCategory> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
               ),
             ),
           ],
@@ -329,7 +315,11 @@ class _ApiPlacesCategoryState extends State<ApiPlacesCategory> {
                   color: Colors.white.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.location_on, color: Colors.white, size: 20),
+                child: const Icon(
+                  Icons.location_on,
+                  color: Colors.white,
+                  size: 20,
+                ),
               ),
             ),
 
@@ -358,8 +348,9 @@ class _ApiPlacesCategoryState extends State<ApiPlacesCategory> {
   }
 
   Widget _buildBackgroundImage(Place place) {
-    if (place.placeImage.isNotEmpty && 
-        (place.placeImage.startsWith('http') || place.placeImage.startsWith('https'))) {
+    if (place.placeImage.isNotEmpty &&
+        (place.placeImage.startsWith('http') ||
+            place.placeImage.startsWith('https'))) {
       // Try to load network image if it's a valid URL
       return Image.network(
         place.placeImage,
@@ -466,20 +457,6 @@ class _PlacesCategoryState extends State<PlacesCategory> {
                   ),
                 ),
                 const Spacer(),
-                TextButton(
-                  onPressed: () {
-                    // Navigate to all places screen
-                    // TODO: Implement navigation to places screen
-                  },
-                  child: const Text(
-                    'View All',
-                    style: TextStyle(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
               ],
             ),
           ),

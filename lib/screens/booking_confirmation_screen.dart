@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
 import '../models/bike_model.dart';
+import 'invoice_viewer_screen.dart';
 import 'home_screen.dart';
 
 class BookingConfirmationScreen extends StatefulWidget {
@@ -9,6 +10,7 @@ class BookingConfirmationScreen extends StatefulWidget {
   final double totalCost;
   final String? paymentId;
   final String? orderId;
+  final Map<String, dynamic>? bookingData;
 
   const BookingConfirmationScreen({
     super.key,
@@ -17,6 +19,7 @@ class BookingConfirmationScreen extends StatefulWidget {
     required this.totalCost,
     this.paymentId,
     this.orderId,
+    this.bookingData,
   });
 
   @override
@@ -53,6 +56,82 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
   void dispose() {
     _animationController.dispose();
     super.dispose();
+  }
+
+  String get bookingId {
+    // Try to get booking ID from API response first
+    if (widget.bookingData != null) {
+      final id =
+          widget.bookingData!['bookingId'] ??
+          widget.bookingData!['id'] ??
+          widget.bookingData!['booking_id'];
+      if (id != null) return id.toString();
+    }
+
+    // Fallback to generated ID
+    return 'RU${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
+  }
+
+  String? get invoiceUrl {
+    // Extract invoice URL from booking response
+    if (widget.bookingData != null) {
+      // Debug: Print all available keys in booking data
+      print('Booking data keys: ${widget.bookingData!.keys.toList()}');
+      print('Booking data: ${widget.bookingData}');
+      
+      final url = widget.bookingData!['invoiceUrl'] ?? 
+                  widget.bookingData!['invoice_url'] ??
+                  widget.bookingData!['invoicePdfUrl'] ??
+                  widget.bookingData!['invoice_pdf_url'];
+      
+      print('Extracted invoice URL: $url');
+      return url;
+    }
+    return null;
+  }
+
+  String _formatBookingDate(String dateTimeString) {
+    try {
+      // Parse the date string (expected format: "2025-10-15 09:00")
+      final parts = dateTimeString.split(' ');
+      if (parts.length >= 2) {
+        final datePart = parts[0]; // "2025-10-15"
+        final timePart = parts[1]; // "09:00"
+
+        final dateParts = datePart.split('-');
+        if (dateParts.length == 3) {
+          final year = dateParts[0];
+          final month = dateParts[1];
+          final day = dateParts[2];
+
+          // Convert to more readable format
+          final monthNames = [
+            '',
+            'Jan',
+            'Feb',
+            'Mar',
+            'Apr',
+            'May',
+            'Jun',
+            'Jul',
+            'Aug',
+            'Sep',
+            'Oct',
+            'Nov',
+            'Dec',
+          ];
+
+          final monthNum = int.tryParse(month) ?? 1;
+          final monthName = monthNum <= 12 ? monthNames[monthNum] : month;
+
+          return '$day $monthName $year, $timePart';
+        }
+      }
+
+      return dateTimeString; // Return original if parsing fails
+    } catch (e) {
+      return dateTimeString; // Return original if parsing fails
+    }
   }
 
   @override
@@ -120,7 +199,9 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          'Your bike is booked successfully!',
+                          widget.paymentId != null
+                              ? 'Your bike is booked and payment confirmed!'
+                              : 'Your bike is booked successfully!',
                           style: TextStyle(
                             fontSize: 16,
                             color: AppColors.textSecondary,
@@ -174,13 +255,19 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
                                 width: 60,
                                 height: 60,
                                 decoration: BoxDecoration(
-                                  color: AppColors.primary.withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(15),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppColors.grey.withOpacity(0.2),
+                                      spreadRadius: 0,
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
                                 ),
-                                child: const Icon(
-                                  Icons.directions_bike,
-                                  color: AppColors.primary,
-                                  size: 30,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(15),
+                                  child: widget.bike.getImageWidget(),
                                 ),
                               ),
                               const SizedBox(width: 16),
@@ -189,7 +276,7 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      widget.bike.name,
+                                      widget.bike.bikeName,
                                       style: const TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.bold,
@@ -198,7 +285,7 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      widget.bike.type,
+                                      widget.bike.category,
                                       style: const TextStyle(
                                         fontSize: 14,
                                         color: AppColors.textSecondary,
@@ -219,18 +306,47 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
                                 : '${widget.duration} Days',
                             Icons.access_time,
                           ),
+                          const SizedBox(height: 12),
+                          if (widget.bookingData != null) ...[
+                            if (widget.bookingData!['startDateTime'] != null)
+                              _buildDetailRow(
+                                'Start Date',
+                                _formatBookingDate(
+                                  widget.bookingData!['startDateTime'],
+                                ),
+                                Icons.event_available,
+                              ),
+                            const SizedBox(height: 12),
+                            if (widget.bookingData!['endDateTime'] != null)
+                              _buildDetailRow(
+                                'End Date',
+                                _formatBookingDate(
+                                  widget.bookingData!['endDateTime'],
+                                ),
+                                Icons.event_busy,
+                              ),
+                            const SizedBox(height: 12),
+                          ],
                           const SizedBox(height: 12), // Reduced from 16
                           _buildDetailRow(
                             'Pickup Location',
-                            widget.bike.location,
+                            widget.bike.place.placeName,
                             Icons.location_on,
                           ),
                           const SizedBox(height: 12), // Reduced from 16
                           _buildDetailRow(
                             'Booking ID',
-                            'RU${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}',
+                            bookingId,
                             Icons.confirmation_number,
                           ),
+                          if (widget.paymentId != null) ...[
+                            const SizedBox(height: 12),
+                            _buildDetailRow(
+                              'Payment ID',
+                              widget.paymentId!,
+                              Icons.payment,
+                            ),
+                          ],
 
                           const SizedBox(height: 20), // Reduced from 24
                           // Total Cost
@@ -283,7 +399,7 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
                     opacity: _fadeAnimation,
                     child: Column(
                       children: [
-                        // Go to Home Button
+                        // Generate Invoice Button
                         Container(
                           width: double.infinity,
                           height: 55,
@@ -299,28 +415,36 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
                               ),
                             ],
                           ),
-                          child: ElevatedButton(
+                          child: ElevatedButton.icon(
                             onPressed: () {
-                              Navigator.of(context).pushAndRemoveUntil(
+                              Navigator.push(
+                                context,
                                 MaterialPageRoute(
-                                  builder: (context) => const HomeScreen(),
+                                  builder: (context) => InvoiceViewerScreen(
+                                    bookingId: bookingId,
+                                    bikeName: widget.bike.bikeName,
+                                    invoiceUrl: invoiceUrl, // Pass the invoice URL from API response
+                                  ),
                                 ),
-                                (route) => false,
                               );
                             },
+                            icon: const Icon(
+                              Icons.receipt_long,
+                              color: AppColors.white,
+                            ),
+                            label: const Text(
+                              'Generate Invoice',
+                              style: TextStyle(
+                                color: AppColors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.transparent,
                               shadowColor: Colors.transparent,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(20),
-                              ),
-                            ),
-                            child: const Text(
-                              'Go to Home',
-                              style: TextStyle(
-                                color: AppColors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
                               ),
                             ),
                           ),
@@ -332,7 +456,7 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
                         Container(
                           width: double.infinity,
                           height: 55,
-                          child: OutlinedButton(
+                          child: OutlinedButton.icon(
                             onPressed: () {
                               // Handle track booking
                               ScaffoldMessenger.of(context).showSnackBar(
@@ -344,6 +468,18 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
                                 ),
                               );
                             },
+                            icon: const Icon(
+                              Icons.location_searching,
+                              color: AppColors.primary,
+                            ),
+                            label: const Text(
+                              'Track Booking',
+                              style: TextStyle(
+                                color: AppColors.primary,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                             style: OutlinedButton.styleFrom(
                               side: const BorderSide(
                                 color: AppColors.primary,
@@ -353,12 +489,34 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
                                 borderRadius: BorderRadius.circular(20),
                               ),
                             ),
-                            child: const Text(
-                              'Track Booking',
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Go to Home Button
+                        Container(
+                          width: double.infinity,
+                          height: 55,
+                          child: TextButton.icon(
+                            onPressed: () {
+                              Navigator.of(context).pushAndRemoveUntil(
+                                MaterialPageRoute(
+                                  builder: (context) => const HomeScreen(),
+                                ),
+                                (route) => false,
+                              );
+                            },
+                            icon: const Icon(
+                              Icons.home,
+                              color: AppColors.textSecondary,
+                            ),
+                            label: const Text(
+                              'Go to Home',
                               style: TextStyle(
-                                color: AppColors.primary,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
+                                color: AppColors.textSecondary,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),

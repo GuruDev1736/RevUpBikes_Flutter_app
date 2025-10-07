@@ -25,11 +25,11 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
   File? _aadharCardImage;
   File? _drivingLicenseImage;
   final ImagePicker _picker = ImagePicker();
-  
+
   // Uploaded file URLs (will be populated after successful upload)
   String? _aadharCardUrl;
   String? _drivingLicenseUrl;
-  
+
   // Upload loading states
   bool _isUploadingAadhar = false;
   bool _isUploadingLicense = false;
@@ -73,39 +73,93 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
     _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
   }
 
-  void _handlePaymentSuccess(PaymentSuccessResponse response) {
-    setState(() {
-      _isProcessingPayment = false;
-    });
-    
+  void _handlePaymentSuccess(PaymentSuccessResponse response) async {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Payment Successful! Payment ID: ${response.paymentId}'),
+        content: Text('Payment Successful! Creating booking...'),
         backgroundColor: AppColors.success,
         behavior: SnackBarBehavior.floating,
       ),
     );
 
-    // Navigate to booking confirmation
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => BookingConfirmationScreen(
-          bike: widget.bike,
-          duration: _calculatedDays,
-          totalCost: _totalCost,
-          paymentId: response.paymentId,
-          orderId: response.orderId,
+    // Keep processing state true while creating booking
+    try {
+      // Get user data for booking creation
+      final userData = await AuthService.getUserData();
+      final userContent = userData?['CONTENT'];
+      final userId = userContent?['userId']?.toString() ?? '';
+
+      if (userId.isEmpty) {
+        throw Exception('User ID not found');
+      }
+
+      // Create booking using the API
+      final bookingResult = await AuthService.createBooking(
+        widget.bike.id.toString(),
+        userId,
+        _formatDateTimeForAPI(_fromDateTime!),
+        _formatDateTimeForAPI(_toDateTime!),
+        response.paymentId ?? '',
+        _totalCost,
+        _aadharCardUrl ?? '',
+        _drivingLicenseUrl ?? '',
+      );
+
+      setState(() {
+        _isProcessingPayment = false;
+      });
+
+      if (bookingResult['STS'] == '200') {
+        // Booking created successfully
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Booking created successfully!'),
+            backgroundColor: AppColors.success,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+
+        // Navigate to booking confirmation after successful booking creation
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => BookingConfirmationScreen(
+              bike: widget.bike,
+              duration: _calculatedDays,
+              totalCost: _totalCost,
+              paymentId: response.paymentId,
+              orderId: response.orderId,
+              bookingData: bookingResult['CONTENT'],
+            ),
+          ),
+        );
+      } else {
+        // Booking creation failed
+        throw Exception(bookingResult['MSG'] ?? 'Failed to create booking');
+      }
+    } catch (e) {
+      setState(() {
+        _isProcessingPayment = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Booking creation failed: ${e.toString()}'),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
         ),
-      ),
-    );
+      );
+
+      // Show retry dialog or handle booking failure
+      _showBookingFailureDialog(response);
+    }
   }
 
   void _handlePaymentError(PaymentFailureResponse response) {
     setState(() {
       _isProcessingPayment = false;
     });
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Payment Failed: ${response.message}'),
@@ -120,7 +174,7 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
     setState(() {
       _isProcessingPayment = false;
     });
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('External Wallet Selected: ${response.walletName}'),
@@ -130,10 +184,69 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
     );
   }
 
+  void _showBookingFailureDialog(PaymentSuccessResponse response) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.error_outline, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Booking Failed'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Payment was successful, but booking creation failed.'),
+            const SizedBox(height: 12),
+            Text('Payment ID: ${response.paymentId}'),
+            const SizedBox(height: 8),
+            const Text('Please contact support for assistance.'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop(); // Close dialog
+              Navigator.of(context).pop(); // Go back to previous screen
+            },
+            child: const Text('Go Back'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.of(context).pop(); // Close dialog
+              // Retry booking creation
+              _handlePaymentSuccess(response);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+            child: const Text(
+              'Retry Booking',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// Convert file to base64 string
   Future<String> _fileToBase64(File file) async {
     final bytes = await file.readAsBytes();
     return base64Encode(bytes);
+  }
+
+  /// Format DateTime to required API format: YYYY-MM-DD HH:mm
+  String _formatDateTimeForAPI(DateTime dateTime) {
+    String year = dateTime.year.toString();
+    String month = dateTime.month.toString().padLeft(2, '0');
+    String day = dateTime.day.toString().padLeft(2, '0');
+    String hour = dateTime.hour.toString().padLeft(2, '0');
+    String minute = dateTime.minute.toString().padLeft(2, '0');
+
+    return '$year-$month-$day $hour:$minute';
   }
 
   /// Get user ID from stored user data
@@ -150,10 +263,10 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
     try {
       // Get file name
       final fileName = path.basename(file.path);
-      
+
       // Convert to base64
       final base64Data = await _fileToBase64(file);
-      
+
       // Get user ID
       final userId = await _getUserId();
       if (userId == null) {
@@ -162,7 +275,7 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
 
       // Upload file
       final result = await AuthService.uploadFile(fileName, base64Data, userId);
-      
+
       if (result['STS'] == '200' && result['CONTENT'] != null) {
         // Extract URL from response - adjust based on your API response structure
         final fileUrl = result['CONTENT'];
@@ -175,8 +288,6 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
       return null;
     }
   }
-
-  
 
   @override
   Widget build(BuildContext context) {
@@ -244,9 +355,13 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
                                 child: Center(
                                   child: CircularProgressIndicator(
                                     color: Colors.white,
-                                    value: loadingProgress.expectedTotalBytes != null
-                                        ? loadingProgress.cumulativeBytesLoaded /
-                                            loadingProgress.expectedTotalBytes!
+                                    value:
+                                        loadingProgress.expectedTotalBytes !=
+                                            null
+                                        ? loadingProgress
+                                                  .cumulativeBytesLoaded /
+                                              loadingProgress
+                                                  .expectedTotalBytes!
                                         : null,
                                   ),
                                 ),
@@ -655,10 +770,10 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
       // Get user data for payment
       final userData = await AuthService.getUserData();
       final userContent = userData?['CONTENT'];
-      
+
       // Calculate amount in paise (multiply by 100 for Razorpay)
       final amountInPaise = (_totalCost * 100).toInt();
-      
+
       var options = {
         'key': 'rzp_test_RPNxiQLJkGE7GO', // You'll replace this with actual key
         'amount': amountInPaise,
@@ -678,11 +793,15 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
           'bike_id': widget.bike.id.toString(),
           'bike_name': widget.bike.bikeName,
           'duration_days': _calculatedDays.toString(),
-          'from_date': _fromDateTime?.toIso8601String() ?? '',
-          'to_date': _toDateTime?.toIso8601String() ?? '',
+          'from_date': _fromDateTime != null
+              ? _formatDateTimeForAPI(_fromDateTime!)
+              : '',
+          'to_date': _toDateTime != null
+              ? _formatDateTimeForAPI(_toDateTime!)
+              : '',
           'aadhar_url': _aadharCardUrl ?? '',
           'license_url': _drivingLicenseUrl ?? '',
-        }
+        },
       };
 
       _razorpay.open(options);
@@ -690,7 +809,7 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
       setState(() {
         _isProcessingPayment = false;
       });
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error initiating payment: ${e.toString()}'),
@@ -886,22 +1005,22 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
         height: 120,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: hasUrl 
+          color: hasUrl
               ? AppColors.success.withOpacity(0.05)
               : isUploading
-                  ? AppColors.primary.withOpacity(0.05)
-                  : hasImage
-                      ? AppColors.lightGrey.withOpacity(0.3)
-                      : AppColors.white,
+              ? AppColors.primary.withOpacity(0.05)
+              : hasImage
+              ? AppColors.lightGrey.withOpacity(0.3)
+              : AppColors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: hasUrl 
-                ? AppColors.success 
-                : isUploading 
-                    ? AppColors.primary
-                    : hasImage 
-                        ? AppColors.primary.withOpacity(0.5)
-                        : AppColors.lightGrey,
+            color: hasUrl
+                ? AppColors.success
+                : isUploading
+                ? AppColors.primary
+                : hasImage
+                ? AppColors.primary.withOpacity(0.5)
+                : AppColors.lightGrey,
           ),
           boxShadow: [
             BoxShadow(
@@ -923,7 +1042,9 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
                     height: 24,
                     child: CircularProgressIndicator(
                       strokeWidth: 3,
-                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        AppColors.primary,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -985,11 +1106,11 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: hasUrl 
-                      ? AppColors.success 
-                      : hasImage 
-                          ? AppColors.primary
-                          : AppColors.text,
+                  color: hasUrl
+                      ? AppColors.success
+                      : hasImage
+                      ? AppColors.primary
+                      : AppColors.text,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -1237,10 +1358,10 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
 
           // Upload the file and get URL
           final uploadedUrl = await _uploadFileAndGetUrl(
-            file, 
-            isAadhar ? 'aadhar' : 'license'
+            file,
+            isAadhar ? 'aadhar' : 'license',
           );
-          
+
           setState(() {
             if (isAadhar) {
               _isUploadingAadhar = false;
@@ -1342,15 +1463,13 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
 
   /// Get the uploaded Aadhar card URL for booking API
   String? get aadharCardUrl => _aadharCardUrl;
-  
+
   /// Get the uploaded driving license URL for booking API
   String? get drivingLicenseUrl => _drivingLicenseUrl;
 
   Widget _buildFallbackImage() {
     return Container(
-      decoration: const BoxDecoration(
-        gradient: AppColors.primaryGradient,
-      ),
+      decoration: const BoxDecoration(gradient: AppColors.primaryGradient),
       child: Center(
         child: Container(
           margin: const EdgeInsets.all(40),

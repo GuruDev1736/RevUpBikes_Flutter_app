@@ -23,9 +23,7 @@ class Place {
       placeDescription: json['placeDescription'] ?? '',
       placeImage: json['placeImage'] ?? '',
       placeLocation: json['placeLocation'] ?? '',
-      createdAt: DateTime.fromMillisecondsSinceEpoch(
-        json['createdAt'] ?? 0,
-      ),
+      createdAt: DateTime.fromMillisecondsSinceEpoch(json['createdAt'] ?? 0),
     );
   }
 

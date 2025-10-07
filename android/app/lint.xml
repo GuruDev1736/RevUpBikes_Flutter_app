@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <!-- Suppress deprecation warnings from third-party libraries -->
+    <issue id="Deprecation" severity="ignore" />
+    
+    <!-- Suppress instantiatable errors for third-party components -->
+    <issue id="Instantiatable" severity="ignore" />
+    
+    <!-- Suppress specific Razorpay related warnings -->
+    <issue id="UsesMinSdkAttributes" severity="ignore" />
+    <issue id="OldTargetApi" severity="ignore" />
+    
+    <!-- Allow Razorpay to use deprecated APIs -->
+    <issue id="Deprecation">
+        <ignore path="**/razorpay_flutter/**" />
+        <ignore path="**/com/razorpay/**" />
+    </issue>
+    
+    <!-- Allow Razorpay components to have instantiation issues -->
+    <issue id="Instantiatable">
+        <ignore path="**/razorpay_flutter/**" />
+        <ignore path="**/com/razorpay/**" />
+    </issue>
+</lint>

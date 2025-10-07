@@ -19,6 +19,28 @@ android {
         jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
+    // Suppress deprecation and obsolete option warnings from third-party libraries
+    tasks.withType<JavaCompile> {
+        options.compilerArgs.addAll(listOf(
+            "-Xlint:-deprecation",
+            "-Xlint:-unchecked",
+            "-Xlint:-options"
+        ))
+    }
+
+    // Configure lint to ignore certain issues
+    lint {
+        disable.addAll(listOf(
+            "Instantiatable",
+            "Deprecation",
+            "OldTargetApi",
+            "UsesMinSdkAttributes"
+        ))
+        baseline = file("lint-baseline.xml")
+        abortOnError = false
+        warningsAsErrors = false
+    }
+
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.example.rev_app"

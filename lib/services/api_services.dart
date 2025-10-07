@@ -235,7 +235,6 @@ class AuthService {
     }
   }
 
-
   /// Get all bikes (requires auth token)
   static Future<Map<String, dynamic>> getAllBikes() async {
     try {
@@ -261,25 +260,31 @@ class AuthService {
       if (response.statusCode == 200 && response.data['STS'] == '200') {
         return response.data;
       } else {
-        return {'MSG': response.data['MSG'] ?? 'Failed to fetch bikes for this place'};
+        return {
+          'MSG': response.data['MSG'] ?? 'Failed to fetch bikes for this place',
+        };
       }
     } on DioException catch (e) {
-      return _handleAuthenticatedError(e, 'Failed to fetch bikes for this place');
+      return _handleAuthenticatedError(
+        e,
+        'Failed to fetch bikes for this place',
+      );
     } catch (e) {
       return {'MSG': 'An unexpected error occurred'};
     }
   }
 
-
- static Future<Map<String, dynamic>> uploadFile(String fileName , String fileData , String userId) async {
+  static Future<Map<String, dynamic>> uploadFile(
+    String fileName,
+    String fileData,
+    String userId,
+  ) async {
     try {
-      final response = await _dio.post('/api/upload',
-      data: {
-        "fileName": fileName,
-        "fileData": fileData,
-        "userId": userId,
-      });
-  
+      final response = await _dio.post(
+        '/api/upload',
+        data: {"fileName": fileName, "fileData": fileData, "userId": userId},
+      );
+
       if (response.statusCode == 200 && response.data['STS'] == '200') {
         return response.data;
       } else {
@@ -292,7 +297,61 @@ class AuthService {
     }
   }
 
+  static Future<Map<String, dynamic>> createBooking(
+    String bikeId,
+    String userId,
+    String startDateTime,
+    String endDateTime,
+    String paymentId,
+    double totalAmount,
+    String aadharcardUrl,
+    String drivingLicenseUrl
+  ) async {
+    try {
+      final response = await _dio.post(
+        '/api/bookings/create?userId=$userId&bikeId=$bikeId',
+        data: {
+          "startDateTime": startDateTime,
+          "endDateTime": endDateTime,
+          "paymentId": paymentId,
+          "totalAmount": totalAmount,
+          "aadharcardUrl": aadharcardUrl,
+          "drivingLicenseUrl": drivingLicenseUrl,
+        },
+      );
 
+      if (response.statusCode == 200 && response.data['STS'] == '200') {
+        return response.data;
+      } else {
+        return {'MSG': response.data['MSG'] ?? 'Failed to create booking'};
+      }
+    } on DioException catch (e) {
+      return _handleAuthenticatedError(e, 'Failed to create booking');
+    } catch (e) {
+      return {'MSG': 'An unexpected error occurred'};
+    }
+  }
+
+static Future<Map<String, dynamic>> getAllBanners() async {
+    try {
+      final response = await _dio.get('/api/banners/all');
+
+      if (response.statusCode == 200 && response.data['STS'] == '200') {
+        return response.data;
+      } else {  
+        return {
+          'MSG': response.data['MSG'] ?? 'Failed to fetch banners',
+        };
+      }
+    } on DioException catch (e) {
+      return _handleAuthenticatedError(
+        e,
+        'Failed to fetch banners',
+      );
+    } catch (e) {
+      return {'MSG': 'An unexpected error occurred'};
+    }
+  }
 
 
 
@@ -300,7 +359,10 @@ class AuthService {
 
 
   /// Helper method to handle errors for authenticated requests
-  static Map<String, dynamic> _handleAuthenticatedError(DioException e, String defaultMessage) {
+  static Map<String, dynamic> _handleAuthenticatedError(
+    DioException e,
+    String defaultMessage,
+  ) {
     String errorMessage = defaultMessage;
     if (e.response?.statusCode == 401) {
       errorMessage = 'Unauthorized. Please login again';
@@ -317,25 +379,27 @@ class AuthService {
     return {'MSG': errorMessage};
   }
 
-
   /// Save authentication data to local storage
   static Future<void> _saveAuthData(Map<String, dynamic> userData) async {
     final prefs = await SharedPreferences.getInstance();
-    
+
     // Extract token from various possible locations in the response
     String? token;
     if (userData['token'] != null) {
       token = userData['token'];
-    } else if (userData['CONTENT'] != null && userData['CONTENT']['token'] != null) {
+    } else if (userData['CONTENT'] != null &&
+        userData['CONTENT']['token'] != null) {
       token = userData['CONTENT']['token'];
     } else if (userData['access_token'] != null) {
       token = userData['access_token'];
     }
-    
+
     await prefs.setString(_tokenKey, token ?? '');
     await prefs.setString(_userDataKey, jsonEncode(userData));
-    
-    print('💾 Auth data saved - Token: ${token != null ? "${token.substring(0, 10)}..." : "null"}');
+
+    print(
+      '💾 Auth data saved - Token: ${token != null ? "${token.substring(0, 10)}..." : "null"}',
+    );
   }
 
   /// Check if user is logged in
@@ -418,7 +482,10 @@ class AuthService {
   static Future<bool> hasCredentialsSaved() async {
     final email = await getSavedEmail();
     final password = await getSavedPassword();
-    return email != null && password != null && email.isNotEmpty && password.isNotEmpty;
+    return email != null &&
+        password != null &&
+        email.isNotEmpty &&
+        password.isNotEmpty;
   }
 
   /// Update the stored auth token
@@ -434,7 +501,7 @@ class AuthService {
     if (token == null || token.isEmpty) {
       return false;
     }
-    
+
     // You can add more sophisticated token validation here
     // For example, checking expiration date if it's a JWT token
     return true;
@@ -454,11 +521,13 @@ class AuthService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString(_tokenKey);
     final userData = prefs.getString(_userDataKey);
-    
+
     print('🔍 DEBUG TOKEN STATUS:');
     print('Token exists: ${token != null}');
     print('Token length: ${token?.length ?? 0}');
-    print('Token preview: ${token != null && token.length > 10 ? "${token.substring(0, 10)}..." : token}');
+    print(
+      'Token preview: ${token != null && token.length > 10 ? "${token.substring(0, 10)}..." : token}',
+    );
     print('User data exists: ${userData != null}');
     print('Is logged in: ${await isLoggedIn()}');
   }
@@ -468,13 +537,20 @@ class AuthService {
     try {
       print('🧪 Testing token header...');
       await debugTokenStatus();
-      
-      await _dio.get('/api/test-auth'); // This endpoint may not exist, that's ok
+
+      await _dio.get(
+        '/api/test-auth',
+      ); // This endpoint may not exist, that's ok
       return {'success': true, 'message': 'Token header test completed'};
     } on DioException catch (e) {
-      print('🧪 Test completed with DioException (expected if endpoint doesn\'t exist)');
+      print(
+        '🧪 Test completed with DioException (expected if endpoint doesn\'t exist)',
+      );
       print('Request headers were: ${e.requestOptions.headers}');
-      return {'success': true, 'message': 'Token header test completed with error (check logs)'};
+      return {
+        'success': true,
+        'message': 'Token header test completed with error (check logs)',
+      };
     } catch (e) {
       return {'success': false, 'message': 'Test failed: $e'};
     }
@@ -502,18 +578,23 @@ class AuthService {
 /// Interceptor to automatically add auth token to requests
 class AuthTokenInterceptor extends Interceptor {
   @override
-  void onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
+  void onRequest(
+    RequestOptions options,
+    RequestInterceptorHandler handler,
+  ) async {
     // Get the token from SharedPreferences using the public method
     final token = await AuthService.getToken();
-    
+
     // Add token to Authorization header if it exists
     if (token != null && token.isNotEmpty) {
       options.headers['Authorization'] = 'Bearer $token';
-      print("🔐 Token added to request: ${options.path} - Token: ${token.substring(0, 10)}...");
+      print(
+        "🔐 Token added to request: ${options.path} - Token: ${token.substring(0, 10)}...",
+      );
     } else {
       print("⚠️ No token found for request: ${options.path}");
     }
-    
+
     super.onRequest(options, handler);
   }
 

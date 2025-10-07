@@ -29,7 +29,8 @@ class _BookmarkScreenState extends State<BookmarkScreen>
       bikeModel: 'MX-2024',
       brand: 'TrekMaster',
       bikeImage: 'assets/images/bikes/mountain_bike.jpg',
-      description: 'Perfect mountain bike for adventure trails and rough terrain exploration.',
+      description:
+          'Perfect mountain bike for adventure trails and rough terrain exploration.',
       pricePerHour: 50.0,
       pricePerDay: 399.0,
       place: Place(
@@ -55,7 +56,8 @@ class _BookmarkScreenState extends State<BookmarkScreen>
       bikeModel: 'CC-Pro-2024',
       brand: 'ElectroRide',
       bikeImage: 'assets/images/bikes/electric_bike.jpg',
-      description: 'Comfortable electric cruiser ideal for city commuting and leisure rides.',
+      description:
+          'Comfortable electric cruiser ideal for city commuting and leisure rides.',
       pricePerHour: 40.0,
       pricePerDay: 299.0,
       place: Place(
@@ -81,7 +83,8 @@ class _BookmarkScreenState extends State<BookmarkScreen>
       bikeModel: 'SD-Sport-2024',
       brand: 'RacerTech',
       bikeImage: 'assets/images/bikes/sports_bike.jpg',
-      description: 'High-performance sports bike designed for speed enthusiasts and racing.',
+      description:
+          'High-performance sports bike designed for speed enthusiasts and racing.',
       pricePerHour: 75.0,
       pricePerDay: 599.0,
       place: Place(
@@ -451,49 +454,55 @@ class _BookmarkScreenState extends State<BookmarkScreen>
                     borderRadius: BorderRadius.circular(16),
                     child: bike.bikeImage.isNotEmpty
                         ? (bike.bikeImage.startsWith('http')
-                            ? Image.network(
-                                bike.bikeImage,
-                                fit: BoxFit.cover,
-                                width: 80,
-                                height: 80,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Center(
-                                    child: Icon(
-                                      Icons.directions_bike,
-                                      size: 40,
-                                      color: AppColors.primary.withOpacity(0.7),
-                                    ),
-                                  );
-                                },
-                                loadingBuilder: (context, child, loadingProgress) {
-                                  if (loadingProgress == null) return child;
-                                  return Center(
-                                    child: SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: AppColors.primary,
+                              ? Image.network(
+                                  bike.bikeImage,
+                                  fit: BoxFit.cover,
+                                  width: 80,
+                                  height: 80,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Center(
+                                      child: Icon(
+                                        Icons.directions_bike,
+                                        size: 40,
+                                        color: AppColors.primary.withOpacity(
+                                          0.7,
+                                        ),
                                       ),
-                                    ),
-                                  );
-                                },
-                              )
-                            : Image.asset(
-                                bike.bikeImage,
-                                fit: BoxFit.cover,
-                                width: 80,
-                                height: 80,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Center(
-                                    child: Icon(
-                                      Icons.directions_bike,
-                                      size: 40,
-                                      color: AppColors.primary.withOpacity(0.7),
-                                    ),
-                                  );
-                                },
-                              ))
+                                    );
+                                  },
+                                  loadingBuilder:
+                                      (context, child, loadingProgress) {
+                                        if (loadingProgress == null)
+                                          return child;
+                                        return Center(
+                                          child: SizedBox(
+                                            width: 20,
+                                            height: 20,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: AppColors.primary,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                )
+                              : Image.asset(
+                                  bike.bikeImage,
+                                  fit: BoxFit.cover,
+                                  width: 80,
+                                  height: 80,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Center(
+                                      child: Icon(
+                                        Icons.directions_bike,
+                                        size: 40,
+                                        color: AppColors.primary.withOpacity(
+                                          0.7,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ))
                         : Center(
                             child: Icon(
                               Icons.directions_bike,

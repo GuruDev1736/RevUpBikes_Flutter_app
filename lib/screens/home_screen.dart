@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
 import '../models/bike_model.dart';
 import '../models/place_model.dart';
+import '../models/banner_model.dart';
 import '../widgets/bike_card.dart';
+import '../widgets/banner_widget.dart';
 import '../components/image_slider.dart';
 import '../components/places_category.dart';
 import '../services/api_services.dart';
 import 'profile_screen.dart';
 import 'bookmark_screen.dart';
 import 'my_rides_screen.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -23,11 +26,14 @@ class _HomeScreenState extends State<HomeScreen> {
   Place? _selectedPlace;
   List<BikeModel> _allBikes = [];
   List<BikeModel> _filteredBikes = [];
+  List<BannerModel> _banners = [];
   bool _isLoadingBikes = false;
+  bool _isLoadingBanners = false;
 
   @override
   void initState() {
     super.initState();
+    _loadBanners();
     _loadBikes();
   }
 
@@ -37,6 +43,39 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  Future<void> _loadBanners() async {
+    setState(() {
+      _isLoadingBanners = true;
+    });
+
+    try {
+      final response = await AuthService.getAllBanners();
+
+      if (response['STS'] == '200' && response['CONTENT'] != null) {
+        final List<dynamic> bannersJson = response['CONTENT'];
+        final List<BannerModel> banners = bannersJson
+            .map((json) => BannerModel.fromJson(json))
+            .toList();
+
+        setState(() {
+          _banners = banners;
+          _isLoadingBanners = false;
+        });
+      } else {
+        setState(() {
+          _banners = [];
+          _isLoadingBanners = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _banners = [];
+        _isLoadingBanners = false;
+      });
+      print('Error loading banners: $e');
+    }
+  }
+
   Future<void> _loadBikes() async {
     setState(() {
       _isLoadingBikes = true;
@@ -44,7 +83,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     try {
       Map<String, dynamic> response;
-      
+
       if (_selectedPlace != null) {
         // Get bikes filtered by place
         response = await AuthService.getBikesByPlace(_selectedPlace!.id);
@@ -58,13 +97,13 @@ class _HomeScreenState extends State<HomeScreen> {
         final List<BikeModel> bikes = bikesJson
             .map((json) => BikeModel.fromJson(json))
             .toList();
-        
+
         setState(() {
           _allBikes = bikes;
           _filteredBikes = bikes;
           _isLoadingBikes = false;
         });
-        
+
         _filterBikes(); // Apply current filters
       } else {
         setState(() {
@@ -110,9 +149,37 @@ class _HomeScreenState extends State<HomeScreen> {
         _selectedPlace = place;
       }
     });
-    
+
     // Reload bikes based on selected place
     _loadBikes();
+  }
+
+  void _onBannerTap(BannerModel banner) {
+    if (banner.navigationLink.isNotEmpty) {
+      _launchUrl(banner.navigationLink);
+    }
+  }
+
+  Future<void> _launchUrl(String url) async {
+    try {
+      final Uri uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        throw 'Could not launch $url';
+      }
+    } catch (e) {
+      print('Error launching URL: $e');
+      // Show a snackbar to inform the user
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not open link: $url'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -128,13 +195,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   // Top app bar with greeting
                   _buildTopBar(),
 
-                  // Image Slider
-                  ImageSlider(
-                    items: SliderDefaults.defaultItems,
-                    height: 180,
-                    autoPlay: true,
-                    autoPlayDuration: const Duration(seconds: 4),
-                  ),
+                  // Banner carousel
+                  _buildBannerSection(),
 
                   // Places categories (API-powered)
                   ApiPlacesCategory(
@@ -156,6 +218,41 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       bottomNavigationBar: _buildBottomNavigationBar(),
+    );
+  }
+
+  Widget _buildBannerSection() {
+    if (_isLoadingBanners) {
+      return Container(
+        height: 180,
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.lightGrey.withOpacity(0.3),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_banners.isEmpty) {
+      // Fallback to default slider if no banners available
+      return ImageSlider(
+        items: SliderDefaults.defaultItems,
+        height: 180,
+        autoPlay: true,
+        autoPlayDuration: const Duration(seconds: 4),
+      );
+    }
+
+    return Column(
+      children: [
+        BannerCarousel(
+          banners: _banners,
+          height: 180,
+          onBannerTap: _onBannerTap,
+        ),
+        const SizedBox(height: 8),
+      ],
     );
   }
 
@@ -388,13 +485,10 @@ class _HomeScreenState extends State<HomeScreen> {
               const CircularProgressIndicator(),
               const SizedBox(height: 16),
               Text(
-                _selectedPlace != null 
+                _selectedPlace != null
                     ? 'Loading bikes in ${_selectedPlace!.placeName}...'
                     : 'Loading bikes...',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: AppColors.grey,
-                ),
+                style: TextStyle(fontSize: 16, color: AppColors.grey),
               ),
             ],
           ),
@@ -417,7 +511,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 16),
               Text(
-                _selectedPlace != null 
+                _selectedPlace != null
                     ? 'No bikes found in ${_selectedPlace!.placeName}'
                     : 'No bikes found',
                 style: TextStyle(

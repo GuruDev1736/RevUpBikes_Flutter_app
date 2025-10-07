@@ -11,6 +11,17 @@ rootProject.layout.buildDirectory.value(newBuildDir)
 subprojects {
     val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
     project.layout.buildDirectory.value(newSubprojectBuildDir)
+    
+    // Apply common configuration to all subprojects
+    afterEvaluate {
+        tasks.withType<JavaCompile> {
+            options.compilerArgs.addAll(listOf(
+                "-Xlint:-deprecation",
+                "-Xlint:-unchecked",
+                "-Xlint:-options"
+            ))
+        }
+    }
 }
 subprojects {
     project.evaluationDependsOn(":app")

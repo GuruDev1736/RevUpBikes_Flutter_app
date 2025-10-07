@@ -44,12 +44,7 @@
             </intent-filter>
         </activity>
         
-        <!-- Razorpay Payment Activities -->
-        <activity
-            android:name="com.razorpay.RzpTokenReceiver"
-            android:exported="false"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
-        
+        <!-- Razorpay Payment Receiver -->
         <receiver
             android:name="com.razorpay.RzpTokenReceiver"
             android:exported="false">

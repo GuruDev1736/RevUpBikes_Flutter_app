@@ -214,9 +214,10 @@ class BikeCard extends StatelessWidget {
 
   Widget _buildBikeImage() {
     // Use the bike image from API first, then fallback to predefined images
-    String? imageUrl = bike.bikeImage.isNotEmpty ? bike.bikeImage : 
-        (CityImageProvider.getBikeImageUrl(bike.name) ??
-        CityImageProvider.getBikeImageByType(bike.type));
+    String? imageUrl = bike.bikeImage.isNotEmpty
+        ? bike.bikeImage
+        : (CityImageProvider.getBikeImageUrl(bike.name) ??
+              CityImageProvider.getBikeImageByType(bike.type));
 
     if (imageUrl != null && imageUrl.isNotEmpty) {
       // Check if it's a network URL or local asset

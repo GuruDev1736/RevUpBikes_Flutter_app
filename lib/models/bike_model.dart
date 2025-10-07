@@ -99,8 +99,6 @@ class BikeModel {
     };
   }
 
-
-
   // Sample bikes - will be replaced by API data
   static List<BikeModel> sampleBikes = [];
 
@@ -161,10 +159,7 @@ class BikeModel {
       width: width,
       height: height,
       color: const Color(0xFFF5F5F5),
-      child: const Icon(
-        Icons.directions_bike,
-        color: Color(0xFF666666),
-      ),
+      child: const Icon(Icons.directions_bike, color: Color(0xFF666666)),
     );
   }
 }
