@@ -353,6 +353,45 @@ static Future<Map<String, dynamic>> getAllBanners() async {
     }
   }
 
+static Future<Map<String, dynamic>> getAllBookingsByUserId(int userId) async {
+    try {
+      final response = await _dio.get('/api/bookings/user/$userId');
+
+      if (response.statusCode == 200 && response.data['STS'] == '200') {
+        return response.data;
+      } else {  
+        return {
+          'MSG': response.data['MSG'] ?? 'Failed to fetch bookings',
+        };
+      }
+    } on DioException catch (e) {
+      return _handleAuthenticatedError(
+        e,
+        'Failed to fetch bookings',
+      );
+    } catch (e) {
+      return {'MSG': 'An unexpected error occurred'};
+    }
+  }
+
+  /// Cancel a booking
+  static Future<Map<String, dynamic>> cancelBooking(String bookingId) async {
+    try {
+      final response = await _dio.put(
+        '/api/bookings/cancel/$bookingId',
+      );
+
+      if (response.statusCode == 200 && response.data['STS'] == '200') {
+        return response.data;
+      } else {
+        return {'MSG': response.data['MSG'] ?? 'Failed to cancel booking'};
+      }
+    } on DioException catch (e) {
+      return _handleAuthenticatedError(e, 'Failed to cancel booking');
+    } catch (e) {
+      return {'MSG': 'An unexpected error occurred'};
+    }
+  }
 
 
 

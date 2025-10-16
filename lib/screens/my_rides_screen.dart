@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
+import '../services/api_services.dart';
 
 class MyRidesScreen extends StatefulWidget {
   const MyRidesScreen({super.key});
@@ -19,6 +20,8 @@ class _MyRidesScreenState extends State<MyRidesScreen>
   late Animation<double> _tabAnimation;
 
   int _selectedTab = 0; // 0: Current, 1: History, 2: Upcoming
+  List<dynamic> _allBookings = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -68,6 +71,68 @@ class _MyRidesScreenState extends State<MyRidesScreen>
 
     await Future.delayed(const Duration(milliseconds: 300));
     _tabController.forward();
+    
+    // Load bookings after animations start
+    _loadBookings();
+  }
+
+  Future<void> _loadBookings() async {
+    try {
+      setState(() {
+        _isLoading = true;
+      });
+
+      final userData = await AuthService.getUserData();
+      final userId = userData?['CONTENT']["userId"];
+
+      if (userId == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please log in to view your rides'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final response = await AuthService.getAllBookingsByUserId(userId);
+
+      if (response['STS'] == '200') {
+        setState(() {
+          _allBookings = response['CONTENT'] ?? [];
+          _isLoading = false;
+        });
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response['MSG'] ?? 'Failed to load bookings'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading bookings: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -161,7 +226,7 @@ class _MyRidesScreenState extends State<MyRidesScreen>
                       Expanded(
                         child: _buildStatCard(
                           title: 'Total Rides',
-                          value: '47',
+                          value: _getTotalRides().toString(),
                           icon: Icons.directions_bike,
                           color: Colors.white,
                         ),
@@ -170,7 +235,7 @@ class _MyRidesScreenState extends State<MyRidesScreen>
                       Expanded(
                         child: _buildStatCard(
                           title: 'This Month',
-                          value: '8',
+                          value: _getThisMonthRides().toString(),
                           icon: Icons.calendar_today,
                           color: Colors.white,
                         ),
@@ -179,7 +244,7 @@ class _MyRidesScreenState extends State<MyRidesScreen>
                       Expanded(
                         child: _buildStatCard(
                           title: 'Total Hours',
-                          value: '142',
+                          value: _getTotalHours().toString(),
                           icon: Icons.access_time,
                           color: Colors.white,
                         ),
@@ -293,6 +358,25 @@ class _MyRidesScreenState extends State<MyRidesScreen>
   }
 
   Widget _buildTabContent() {
+    if (_isLoading) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text(
+              'Loading your rides...',
+              style: TextStyle(
+                color: Colors.grey,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     switch (_selectedTab) {
       case 0:
         return _buildCurrentRides();
@@ -309,11 +393,20 @@ class _MyRidesScreenState extends State<MyRidesScreen>
     final currentRides = _getCurrentRides();
 
     if (currentRides.isEmpty) {
-      return _buildEmptyState(
-        icon: Icons.directions_bike,
-        title: 'No Active Rides',
-        subtitle: 'You don\'t have any active rides right now',
-        buttonText: 'Find a Bike',
+      return RefreshIndicator(
+        onRefresh: _loadBookings,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height * 0.6,
+            child: _buildEmptyState(
+              icon: Icons.directions_bike,
+              title: 'No Active Rides',
+              subtitle: 'You don\'t have any active rides right now',
+              buttonText: 'Find a Bike',
+            ),
+          ),
+        ),
       );
     }
 
@@ -322,27 +415,30 @@ class _MyRidesScreenState extends State<MyRidesScreen>
       builder: (context, child) {
         return FadeTransition(
           opacity: _fadeAnimation,
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            itemCount: currentRides.length,
-            itemBuilder: (context, index) {
-              final ride = currentRides[index];
+          child: RefreshIndicator(
+            onRefresh: _loadBookings,
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              itemCount: currentRides.length,
+              itemBuilder: (context, index) {
+                final ride = currentRides[index];
 
-              return TweenAnimationBuilder<double>(
-                duration: Duration(milliseconds: 400 + (index * 100)),
-                tween: Tween(begin: 0.0, end: 1.0),
-                curve: Curves.easeOutCubic,
-                builder: (context, value, child) {
-                  return Transform.translate(
-                    offset: Offset(0, 20 * (1 - value)),
-                    child: Opacity(
-                      opacity: value.clamp(0.0, 1.0),
-                      child: _buildCurrentRideCard(ride),
-                    ),
-                  );
-                },
-              );
-            },
+                return TweenAnimationBuilder<double>(
+                  duration: Duration(milliseconds: 400 + (index * 100)),
+                  tween: Tween(begin: 0.0, end: 1.0),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, value, child) {
+                    return Transform.translate(
+                      offset: Offset(0, 20 * (1 - value)),
+                      child: Opacity(
+                        opacity: value.clamp(0.0, 1.0),
+                        child: _buildCurrentRideCard(ride),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
           ),
         );
       },
@@ -353,11 +449,20 @@ class _MyRidesScreenState extends State<MyRidesScreen>
     final historyRides = _getHistoryRides();
 
     if (historyRides.isEmpty) {
-      return _buildEmptyState(
-        icon: Icons.history,
-        title: 'No Ride History',
-        subtitle: 'Your completed rides will appear here',
-        buttonText: 'Start Your First Ride',
+      return RefreshIndicator(
+        onRefresh: _loadBookings,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height * 0.6,
+            child: _buildEmptyState(
+              icon: Icons.history,
+              title: 'No Ride History',
+              subtitle: 'Your completed rides will appear here',
+              buttonText: 'Start Your First Ride',
+            ),
+          ),
+        ),
       );
     }
 
@@ -366,27 +471,30 @@ class _MyRidesScreenState extends State<MyRidesScreen>
       builder: (context, child) {
         return FadeTransition(
           opacity: _fadeAnimation,
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            itemCount: historyRides.length,
-            itemBuilder: (context, index) {
-              final ride = historyRides[index];
+          child: RefreshIndicator(
+            onRefresh: _loadBookings,
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              itemCount: historyRides.length,
+              itemBuilder: (context, index) {
+                final ride = historyRides[index];
 
-              return TweenAnimationBuilder<double>(
-                duration: Duration(milliseconds: 400 + (index * 100)),
-                tween: Tween(begin: 0.0, end: 1.0),
-                curve: Curves.easeOutCubic,
-                builder: (context, value, child) {
-                  return Transform.translate(
-                    offset: Offset(0, 20 * (1 - value)),
-                    child: Opacity(
-                      opacity: value.clamp(0.0, 1.0),
-                      child: _buildHistoryRideCard(ride),
-                    ),
-                  );
-                },
-              );
-            },
+                return TweenAnimationBuilder<double>(
+                  duration: Duration(milliseconds: 400 + (index * 100)),
+                  tween: Tween(begin: 0.0, end: 1.0),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, value, child) {
+                    return Transform.translate(
+                      offset: Offset(0, 20 * (1 - value)),
+                      child: Opacity(
+                        opacity: value.clamp(0.0, 1.0),
+                        child: _buildHistoryRideCard(ride),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
           ),
         );
       },
@@ -397,11 +505,20 @@ class _MyRidesScreenState extends State<MyRidesScreen>
     final upcomingRides = _getUpcomingRides();
 
     if (upcomingRides.isEmpty) {
-      return _buildEmptyState(
-        icon: Icons.event,
-        title: 'No Upcoming Rides',
-        subtitle: 'Book a bike to see your upcoming rides',
-        buttonText: 'Book a Ride',
+      return RefreshIndicator(
+        onRefresh: _loadBookings,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height * 0.6,
+            child: _buildEmptyState(
+              icon: Icons.event,
+              title: 'No Upcoming Rides',
+              subtitle: 'Book a bike to see your upcoming rides',
+              buttonText: 'Book a Ride',
+            ),
+          ),
+        ),
       );
     }
 
@@ -410,27 +527,30 @@ class _MyRidesScreenState extends State<MyRidesScreen>
       builder: (context, child) {
         return FadeTransition(
           opacity: _fadeAnimation,
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            itemCount: upcomingRides.length,
-            itemBuilder: (context, index) {
-              final ride = upcomingRides[index];
+          child: RefreshIndicator(
+            onRefresh: _loadBookings,
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              itemCount: upcomingRides.length,
+              itemBuilder: (context, index) {
+                final ride = upcomingRides[index];
 
-              return TweenAnimationBuilder<double>(
-                duration: Duration(milliseconds: 400 + (index * 100)),
-                tween: Tween(begin: 0.0, end: 1.0),
-                curve: Curves.easeOutCubic,
-                builder: (context, value, child) {
-                  return Transform.translate(
-                    offset: Offset(0, 20 * (1 - value)),
-                    child: Opacity(
-                      opacity: value.clamp(0.0, 1.0),
-                      child: _buildUpcomingRideCard(ride),
-                    ),
-                  );
-                },
-              );
-            },
+                return TweenAnimationBuilder<double>(
+                  duration: Duration(milliseconds: 400 + (index * 100)),
+                  tween: Tween(begin: 0.0, end: 1.0),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, value, child) {
+                    return Transform.translate(
+                      offset: Offset(0, 20 * (1 - value)),
+                      child: Opacity(
+                        opacity: value.clamp(0.0, 1.0),
+                        child: _buildUpcomingRideCard(ride),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
           ),
         );
       },
@@ -818,16 +938,17 @@ class _MyRidesScreenState extends State<MyRidesScreen>
                   ),
                 ),
 
-                // Cancel button
-                TextButton(
-                  onPressed: () {
-                    _showCancelBookingDialog(ride);
-                  },
-                  child: const Text(
-                    'Cancel',
-                    style: TextStyle(color: Colors.red, fontSize: 12),
+                // Cancel button - only show for CONFIRMED bookings
+                if (ride.status.toUpperCase() == 'CONFIRMED')
+                  TextButton(
+                    onPressed: () {
+                      _showCancelBookingDialog(ride);
+                    },
+                    child: const Text(
+                      'Cancel',
+                      style: TextStyle(color: Colors.red, fontSize: 12),
+                    ),
                   ),
-                ),
               ],
             ),
           ),
@@ -894,15 +1015,9 @@ class _MyRidesScreenState extends State<MyRidesScreen>
               child: const Text('Keep Booking'),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.pop(context);
-                // Handle cancel booking logic
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Booking cancelled'),
-                    backgroundColor: Colors.orange,
-                  ),
-                );
+                await _cancelBooking(ride.id);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
@@ -916,70 +1031,346 @@ class _MyRidesScreenState extends State<MyRidesScreen>
     );
   }
 
-  // Sample data methods
+  Future<void> _cancelBooking(String bookingId) async {
+    try {
+      // Show loading indicator
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+                SizedBox(width: 16),
+                Text('Cancelling booking...'),
+              ],
+            ),
+            duration: Duration(seconds: 30),
+          ),
+        );
+      }
+
+      final response = await AuthService.cancelBooking(bookingId);
+
+      // Close loading indicator
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      }
+
+      if (response['STS'] == '200') {
+        // Show success message
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Booking cancelled successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+
+        // Reload bookings to refresh the list
+        await _loadBookings();
+      } else {
+        // Show error message
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response['MSG'] ?? 'Failed to cancel booking'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // Close loading indicator
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      }
+
+      // Show error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error cancelling booking: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // Stats calculation methods
+  int _getTotalRides() {
+    if (_isLoading || _allBookings.isEmpty) return 0;
+    // Count all bookings except CANCELLED
+    return _allBookings
+        .where((booking) {
+          final status = booking['bookingStatus']?.toString().toUpperCase() ?? '';
+          return status != 'CANCELLED';
+        })
+        .length;
+  }
+
+  int _getThisMonthRides() {
+    if (_isLoading || _allBookings.isEmpty) return 0;
+    final now = DateTime.now();
+    
+    // Count bookings from current month (not cancelled)
+    return _allBookings
+        .where((booking) {
+          final status = booking['bookingStatus']?.toString().toUpperCase() ?? '';
+          if (status == 'CANCELLED') return false;
+          
+          final startDateStr = booking['startDateTime']?.toString() ?? '';
+          if (startDateStr.isEmpty) return false;
+          
+          try {
+            DateTime startDate;
+            if (startDateStr.contains(' ')) {
+              final parts = startDateStr.split(' ');
+              final dateParts = parts[0].split('-');
+              startDate = DateTime(
+                int.parse(dateParts[0]),
+                int.parse(dateParts[1]),
+                int.parse(dateParts[2]),
+              );
+            } else {
+              startDate = DateTime.parse(startDateStr);
+            }
+            
+            return startDate.year == now.year && startDate.month == now.month;
+          } catch (e) {
+            return false;
+          }
+        })
+        .length;
+  }
+
+  int _getTotalHours() {
+    if (_isLoading || _allBookings.isEmpty) return 0;
+    
+    // Sum up all totalHours from non-cancelled bookings
+    int totalHours = 0;
+    for (var booking in _allBookings) {
+      final status = booking['bookingStatus']?.toString().toUpperCase() ?? '';
+      if (status == 'CANCELLED') continue;
+      
+      final hours = booking['totalHours'];
+      if (hours != null) {
+        if (hours is int) {
+          totalHours += hours;
+        } else {
+          try {
+            totalHours += int.parse(hours.toString());
+          } catch (e) {
+            // Skip if can't parse
+          }
+        }
+      }
+    }
+    
+    return totalHours;
+  }
+
+  // Real data methods
+  // BookingStatus enum: PENDING, CONFIRMED, ACTIVE, COMPLETED, CANCELLED
+  
   List<RideModel> _getCurrentRides() {
-    return [
-      RideModel(
-        id: '1',
-        bikeName: 'Mountain Explorer',
-        startTime: '2:30 PM',
-        duration: '1h 45m',
-        status: 'active',
-        date: 'Today',
-        totalCost: 199,
-        rating: 0.0,
-      ),
-    ];
+    if (_isLoading || _allBookings.isEmpty) return [];
+    
+    // Current rides: ACTIVE status only
+    return _allBookings
+        .where((booking) {
+          final status = booking['bookingStatus']?.toString().toUpperCase() ?? '';
+          return status == 'ACTIVE';
+        })
+        .map<RideModel>((booking) => _mapBookingToRideModel(booking))
+        .toList();
   }
 
   List<RideModel> _getHistoryRides() {
-    return [
-      RideModel(
-        id: '2',
-        bikeName: 'City Cruiser Pro',
-        startTime: '10:00 AM',
-        duration: '2h 30m',
-        status: 'completed',
-        date: 'Sep 3, 2025',
-        totalCost: 299,
-        rating: 4.8,
-      ),
-      RideModel(
-        id: '3',
-        bikeName: 'Speed Demon',
-        startTime: '3:15 PM',
-        duration: '1h 15m',
-        status: 'completed',
-        date: 'Sep 1, 2025',
-        totalCost: 399,
-        rating: 4.9,
-      ),
-      RideModel(
-        id: '4',
-        bikeName: 'Urban Rider',
-        startTime: '9:30 AM',
-        duration: '3h 00m',
-        status: 'completed',
-        date: 'Aug 28, 2025',
-        totalCost: 449,
-        rating: 4.6,
-      ),
-    ];
+    if (_isLoading || _allBookings.isEmpty) return [];
+    
+    // History rides: COMPLETED and CANCELLED statuses
+    return _allBookings
+        .where((booking) {
+          final status = booking['bookingStatus']?.toString().toUpperCase() ?? '';
+          return status == 'COMPLETED' || status == 'CANCELLED';
+        })
+        .map<RideModel>((booking) => _mapBookingToRideModel(booking))
+        .toList();
   }
 
   List<RideModel> _getUpcomingRides() {
-    return [
-      RideModel(
-        id: '5',
-        bikeName: 'Electric Glide',
-        startTime: '10:00 AM',
-        duration: '',
-        status: 'upcoming',
-        date: 'Sep 7, 2025',
-        totalCost: 399,
-        rating: 0.0,
-      ),
-    ];
+    if (_isLoading || _allBookings.isEmpty) return [];
+    
+    // Upcoming rides: PENDING and CONFIRMED statuses
+    return _allBookings
+        .where((booking) {
+          final status = booking['bookingStatus']?.toString().toUpperCase() ?? '';
+          return status == 'PENDING' || status == 'CONFIRMED';
+        })
+        .map<RideModel>((booking) => _mapBookingToRideModel(booking))
+        .toList();
+  }
+
+  RideModel _mapBookingToRideModel(dynamic booking) {
+    // Extract bike info from the bike object
+    final bikeInfo = booking['bike'] ?? {};
+    String bikeName = 'Bike';
+    if (bikeInfo is Map) {
+      bikeName = bikeInfo['bikeName']?.toString() ?? 
+                 bikeInfo['bikeModel']?.toString() ?? 
+                 'Bike';
+    }
+
+    // Parse dates and times (API format: "2025-10-16 16:21")
+    final startDateTimeStr = booking['startDateTime']?.toString() ?? '';
+    final endDateTimeStr = booking['endDateTime']?.toString() ?? '';
+    
+    String startTime = '';
+    String date = '';
+    String duration = '';
+    
+    try {
+      if (startDateTimeStr.isNotEmpty) {
+        // Parse the date-time string (format: "2025-10-16 16:21")
+        DateTime startDate;
+        if (startDateTimeStr.contains(' ')) {
+          // Custom parsing for "yyyy-MM-dd HH:mm" format
+          final parts = startDateTimeStr.split(' ');
+          final dateParts = parts[0].split('-');
+          final timeParts = parts[1].split(':');
+          startDate = DateTime(
+            int.parse(dateParts[0]), // year
+            int.parse(dateParts[1]), // month
+            int.parse(dateParts[2]), // day
+            int.parse(timeParts[0]), // hour
+            int.parse(timeParts[1]), // minute
+          );
+        } else {
+          startDate = DateTime.parse(startDateTimeStr);
+        }
+        
+        // Format time (e.g., "4:21 PM")
+        final hour = startDate.hour > 12 ? startDate.hour - 12 : (startDate.hour == 0 ? 12 : startDate.hour);
+        final minute = startDate.minute.toString().padLeft(2, '0');
+        final period = startDate.hour >= 12 ? 'PM' : 'AM';
+        startTime = '$hour:$minute $period';
+        
+        // Check if it's today
+        final now = DateTime.now();
+        if (startDate.year == now.year && 
+            startDate.month == now.month && 
+            startDate.day == now.day) {
+          date = 'Today';
+        } else {
+          // Format date (e.g., "Oct 16, 2025")
+          const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          date = '${months[startDate.month - 1]} ${startDate.day}, ${startDate.year}';
+        }
+        
+        // Use totalDays and totalHours from API if available
+        final totalDays = booking['totalDays'];
+        final totalHours = booking['totalHours'];
+        
+        if (totalDays != null && totalDays > 0) {
+          duration = '$totalDays day${totalDays > 1 ? 's' : ''}';
+        } else if (totalHours != null && totalHours > 0) {
+          if (totalHours >= 24) {
+            final days = totalHours ~/ 24;
+            final hours = totalHours % 24;
+            if (hours > 0) {
+              duration = '$days day${days > 1 ? 's' : ''} ${hours}h';
+            } else {
+              duration = '$days day${days > 1 ? 's' : ''}';
+            }
+          } else {
+            duration = '${totalHours}h';
+          }
+        } else if (endDateTimeStr.isNotEmpty) {
+          // Calculate duration from dates
+          try {
+            DateTime endDate;
+            if (endDateTimeStr.contains(' ')) {
+              final parts = endDateTimeStr.split(' ');
+              final dateParts = parts[0].split('-');
+              final timeParts = parts[1].split(':');
+              endDate = DateTime(
+                int.parse(dateParts[0]),
+                int.parse(dateParts[1]),
+                int.parse(dateParts[2]),
+                int.parse(timeParts[0]),
+                int.parse(timeParts[1]),
+              );
+            } else {
+              endDate = DateTime.parse(endDateTimeStr);
+            }
+            
+            final diff = endDate.difference(startDate);
+            final days = diff.inDays;
+            final hours = diff.inHours % 24;
+            
+            if (days > 0) {
+              if (hours > 0) {
+                duration = '$days day${days > 1 ? 's' : ''} ${hours}h';
+              } else {
+                duration = '$days day${days > 1 ? 's' : ''}';
+              }
+            } else if (diff.inHours > 0) {
+              duration = '${diff.inHours}h';
+            } else {
+              duration = '${diff.inMinutes}m';
+            }
+          } catch (e) {
+            // If end date parsing fails, leave duration empty
+          }
+        }
+      }
+    } catch (e) {
+      // If date parsing fails, use raw values
+      startTime = startDateTimeStr;
+      date = startDateTimeStr;
+    }
+
+    return RideModel(
+      id: booking['id']?.toString() ?? '',
+      bikeName: bikeName,
+      startTime: startTime,
+      duration: duration,
+      status: booking['bookingStatus']?.toString() ?? '',
+      date: date,
+      totalCost: _parseCost(booking['totalAmount']),
+      rating: _parseRating(booking['rating']),
+    );
+  }
+
+  int _parseCost(dynamic cost) {
+    if (cost == null) return 0;
+    if (cost is int) return cost;
+    if (cost is double) return cost.toInt();
+    try {
+      return int.parse(cost.toString());
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  double _parseRating(dynamic rating) {
+    if (rating == null) return 0.0;
+    if (rating is double) return rating;
+    if (rating is int) return rating.toDouble();
+    try {
+      return double.parse(rating.toString());
+    } catch (e) {
+      return 0.0;
+    }
   }
 }
 
