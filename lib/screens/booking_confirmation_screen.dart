@@ -3,6 +3,7 @@ import '../utils/app_colors.dart';
 import '../models/bike_model.dart';
 import 'invoice_viewer_screen.dart';
 import 'home_screen.dart';
+import 'my_rides_screen.dart';
 
 class BookingConfirmationScreen extends StatefulWidget {
   final BikeModel bike;
@@ -458,13 +459,11 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
                           height: 55,
                           child: OutlinedButton.icon(
                             onPressed: () {
-                              // Handle track booking
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Tracking feature coming soon!',
-                                  ),
-                                  backgroundColor: AppColors.primary,
+                              // Navigate to My Rides screen
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const MyRidesScreen(),
                                 ),
                               );
                             },

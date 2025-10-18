@@ -305,7 +305,7 @@ class AuthService {
     String paymentId,
     double totalAmount,
     String aadharcardUrl,
-    String drivingLicenseUrl
+    String drivingLicenseUrl,
   ) async {
     try {
       final response = await _dio.post(
@@ -332,53 +332,47 @@ class AuthService {
     }
   }
 
-static Future<Map<String, dynamic>> getAllBanners() async {
+  static Future<Map<String, dynamic>> getAllBanners() async {
     try {
       final response = await _dio.get('/api/banners/all');
 
       if (response.statusCode == 200 && response.data['STS'] == '200') {
         return response.data;
-      } else {  
-        return {
-          'MSG': response.data['MSG'] ?? 'Failed to fetch banners',
-        };
+      } else {
+        return {'MSG': response.data['MSG'] ?? 'Failed to fetch banners'};
       }
     } on DioException catch (e) {
-      return _handleAuthenticatedError(
-        e,
-        'Failed to fetch banners',
-      );
+      return _handleAuthenticatedError(e, 'Failed to fetch banners');
     } catch (e) {
       return {'MSG': 'An unexpected error occurred'};
     }
   }
 
-static Future<Map<String, dynamic>> getAllBookingsByUserId(int userId) async {
+  static Future<Map<String, dynamic>> getAllBookingsByUserId(int userId) async {
     try {
       final response = await _dio.get('/api/bookings/user/$userId');
 
       if (response.statusCode == 200 && response.data['STS'] == '200') {
         return response.data;
-      } else {  
-        return {
-          'MSG': response.data['MSG'] ?? 'Failed to fetch bookings',
-        };
+      } else {
+        return {'MSG': response.data['MSG'] ?? 'Failed to fetch bookings'};
       }
     } on DioException catch (e) {
-      return _handleAuthenticatedError(
-        e,
-        'Failed to fetch bookings',
-      );
+      return _handleAuthenticatedError(e, 'Failed to fetch bookings');
     } catch (e) {
       return {'MSG': 'An unexpected error occurred'};
     }
   }
 
   /// Cancel a booking
-  static Future<Map<String, dynamic>> cancelBooking(String bookingId) async {
+  static Future<Map<String, dynamic>> cancelBooking(
+    String bookingId,
+    String reason,
+  ) async {
     try {
       final response = await _dio.put(
-        '/api/bookings/cancel/$bookingId',
+        '/api/bookings/$bookingId/cancel',
+        data: {"reason": reason},
       );
 
       if (response.statusCode == 200 && response.data['STS'] == '200') {
@@ -392,10 +386,6 @@ static Future<Map<String, dynamic>> getAllBookingsByUserId(int userId) async {
       return {'MSG': 'An unexpected error occurred'};
     }
   }
-
-
-
-
 
   /// Helper method to handle errors for authenticated requests
   static Map<String, dynamic> _handleAuthenticatedError(

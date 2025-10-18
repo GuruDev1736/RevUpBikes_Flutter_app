@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
 import '../services/api_services.dart';
+import 'booking_detail_screen.dart';
 
 class MyRidesScreen extends StatefulWidget {
   const MyRidesScreen({super.key});
@@ -616,43 +617,45 @@ class _MyRidesScreenState extends State<MyRidesScreen>
   }
 
   Widget _buildCurrentRideCard(RideModel ride) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.grey.withOpacity(0.1),
-            spreadRadius: 0,
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Status banner
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            decoration: const BoxDecoration(
-              color: Colors.green,
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
+    return GestureDetector(
+      onTap: () => _showBookingDetails(ride, ride.bookingData ?? {}),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.grey.withOpacity(0.1),
+              spreadRadius: 0,
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            // Status banner
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              decoration: const BoxDecoration(
+                color: Colors.green,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                ),
+              ),
+              child: Text(
+                ride.status.toUpperCase(),
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
               ),
             ),
-            child: const Text(
-              'ACTIVE RIDE',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
-              ),
-            ),
-          ),
 
           Padding(
             padding: const EdgeInsets.all(16),
@@ -666,12 +669,9 @@ class _MyRidesScreenState extends State<MyRidesScreen>
                     color: AppColors.lightGrey.withOpacity(0.3),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Center(
-                    child: Icon(
-                      Icons.directions_bike,
-                      size: 30,
-                      color: AppColors.primary.withOpacity(0.7),
-                    ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: _buildBikeImage(ride),
                   ),
                 ),
 
@@ -710,35 +710,19 @@ class _MyRidesScreenState extends State<MyRidesScreen>
                     ],
                   ),
                 ),
-
-                // End ride button
-                ElevatedButton(
-                  onPressed: () {
-                    _showEndRideDialog(ride);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                  ),
-                  child: const Text('End Ride', style: TextStyle(fontSize: 12)),
-                ),
               ],
             ),
           ),
         ],
       ),
-    );
+      ), // Close Container (child of GestureDetector)
+    ); // Close GestureDetector
   }
 
   Widget _buildHistoryRideCard(RideModel ride) {
-    return Container(
+    return GestureDetector(
+      onTap: () => _showBookingDetails(ride, ride.bookingData ?? {}),
+      child: Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -764,12 +748,9 @@ class _MyRidesScreenState extends State<MyRidesScreen>
                 color: AppColors.lightGrey.withOpacity(0.3),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Center(
-                child: Icon(
-                  Icons.directions_bike,
-                  size: 25,
-                  color: AppColors.primary.withOpacity(0.7),
-                ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: _buildBikeImage(ride),
               ),
             ),
 
@@ -839,11 +820,14 @@ class _MyRidesScreenState extends State<MyRidesScreen>
           ],
         ),
       ),
-    );
+      ), // Close Container (child of GestureDetector)
+    ); // Close GestureDetector
   }
 
   Widget _buildUpcomingRideCard(RideModel ride) {
-    return Container(
+    return GestureDetector(
+      onTap: () => _showBookingDetails(ride, ride.bookingData ?? {}),
+      child: Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -893,12 +877,9 @@ class _MyRidesScreenState extends State<MyRidesScreen>
                     color: AppColors.lightGrey.withOpacity(0.3),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Center(
-                    child: Icon(
-                      Icons.directions_bike,
-                      size: 30,
-                      color: AppColors.primary.withOpacity(0.7),
-                    ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: _buildBikeImage(ride),
                   ),
                 ),
 
@@ -954,70 +935,105 @@ class _MyRidesScreenState extends State<MyRidesScreen>
           ),
         ],
       ),
-    );
+      ), // Close Container (child of GestureDetector)
+    ); // Close GestureDetector
   }
 
-  void _showEndRideDialog(RideModel ride) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: const Text('End Ride'),
-          content: Text(
-            'Are you sure you want to end your ride with ${ride.bikeName}?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Continue Riding'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                // Handle end ride logic
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Ride ended successfully'),
-                    backgroundColor: AppColors.primary,
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('End Ride'),
-            ),
-          ],
-        );
-      },
+  void _showBookingDetails(RideModel ride, dynamic bookingData) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => BookingDetailScreen(
+          bookingData: bookingData,
+        ),
+      ),
     );
   }
 
   void _showCancelBookingDialog(RideModel ride) {
+    final TextEditingController reasonController = TextEditingController();
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    
     showDialog(
       context: context,
-      builder: (BuildContext context) {
+      builder: (BuildContext dialogContext) {
         return AlertDialog(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
           title: const Text('Cancel Booking'),
-          content: Text(
-            'Are you sure you want to cancel your booking for ${ride.bikeName}?',
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Are you sure you want to cancel your booking for ${ride.bikeName}?',
+                  style: const TextStyle(fontSize: 14),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Cancellation Reason:',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.text,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: reasonController,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    hintText: 'Please provide a reason for cancellation...',
+                    hintStyle: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey[400],
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey[300]!),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey[300]!),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                    ),
+                    contentPadding: const EdgeInsets.all(12),
+                  ),
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
               child: const Text('Keep Booking'),
             ),
             ElevatedButton(
-              onPressed: () async {
-                Navigator.pop(context);
-                await _cancelBooking(ride.id);
+              onPressed: () {
+                final reason = reasonController.text.trim();
+                
+                if (reason.isEmpty) {
+                  // Show error using the captured scaffoldMessenger
+                  scaffoldMessenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('Please provide a cancellation reason'),
+                      backgroundColor: Colors.orange,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                  return;
+                }
+                
+                // Close dialog and proceed with cancellation
+                Navigator.pop(dialogContext);
+                _cancelBooking(ride.id, reason);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
@@ -1028,10 +1044,13 @@ class _MyRidesScreenState extends State<MyRidesScreen>
           ],
         );
       },
-    );
+    ).whenComplete(() {
+      // Dispose controller when dialog is fully dismissed
+      reasonController.dispose();
+    });
   }
 
-  Future<void> _cancelBooking(String bookingId) async {
+  Future<void> _cancelBooking(String bookingId, String reason) async {
     try {
       // Show loading indicator
       if (mounted) {
@@ -1056,7 +1075,7 @@ class _MyRidesScreenState extends State<MyRidesScreen>
         );
       }
 
-      final response = await AuthService.cancelBooking(bookingId);
+      final response = await AuthService.cancelBooking(bookingId, reason);
 
       // Close loading indicator
       if (mounted) {
@@ -1176,6 +1195,56 @@ class _MyRidesScreenState extends State<MyRidesScreen>
     }
     
     return totalHours;
+  }
+
+  // Helper method to build bike image
+  Widget _buildBikeImage(RideModel ride) {
+    // Try to get bike image from bookingData
+    final bikeData = ride.bookingData?['bike'];
+    String? imageUrl;
+    
+    if (bikeData != null) {
+      imageUrl = bikeData['bikeImage']?.toString();
+    }
+    
+    // If we have a valid image URL, show it; otherwise show icon
+    if (imageUrl != null && imageUrl.isNotEmpty) {
+      return Image.network(
+        imageUrl,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return Center(
+            child: Icon(
+              Icons.directions_bike,
+              size: 30,
+              color: AppColors.primary.withOpacity(0.7),
+            ),
+          );
+        },
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Center(
+            child: CircularProgressIndicator(
+              value: loadingProgress.expectedTotalBytes != null
+                  ? loadingProgress.cumulativeBytesLoaded /
+                      loadingProgress.expectedTotalBytes!
+                  : null,
+              strokeWidth: 2,
+              color: AppColors.primary,
+            ),
+          );
+        },
+      );
+    } else {
+      // Show default icon
+      return Center(
+        child: Icon(
+          Icons.directions_bike,
+          size: 30,
+          color: AppColors.primary.withOpacity(0.7),
+        ),
+      );
+    }
   }
 
   // Real data methods
@@ -1348,6 +1417,7 @@ class _MyRidesScreenState extends State<MyRidesScreen>
       date: date,
       totalCost: _parseCost(booking['totalAmount']),
       rating: _parseRating(booking['rating']),
+      bookingData: booking, // Include full booking data
     );
   }
 
@@ -1384,6 +1454,7 @@ class RideModel {
   final String date;
   final int totalCost;
   final double rating;
+  final dynamic bookingData; // Full booking data from API
 
   RideModel({
     required this.id,
@@ -1394,5 +1465,6 @@ class RideModel {
     required this.date,
     required this.totalCost,
     required this.rating,
+    this.bookingData,
   });
 }
