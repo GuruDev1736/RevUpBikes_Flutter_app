@@ -9,6 +9,7 @@ import 'package:path/path.dart' as path;
 import '../utils/app_colors.dart';
 import '../models/bike_model.dart';
 import '../services/api_services.dart';
+import '../services/database_helper.dart';
 import 'booking_confirmation_screen.dart';
 
 class BikeDetailsScreen extends StatefulWidget {
@@ -42,6 +43,9 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
   DateTime? _fromDateTime;
   DateTime? _toDateTime;
 
+  // Bookmark state
+  bool _isBookmarked = false;
+
   // Calculate number of days between selected dates
   int get _calculatedDays {
     if (_fromDateTime == null || _toDateTime == null) return 1;
@@ -58,6 +62,14 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
   void initState() {
     super.initState();
     _initializeRazorpay();
+    _checkBookmarkStatus();
+  }
+
+  Future<void> _checkBookmarkStatus() async {
+    final isBookmarked = await DatabaseHelper.instance.isBookmarked(widget.bike.id);
+    setState(() {
+      _isBookmarked = isBookmarked;
+    });
   }
 
   @override
@@ -319,13 +331,42 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
                     color: AppColors.white.withOpacity(0.9),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(
-                    Icons.favorite_border,
-                    color: AppColors.text,
+                  child: Icon(
+                    _isBookmarked ? Icons.bookmark : Icons.bookmark_border,
+                    color: _isBookmarked ? AppColors.primary : AppColors.text,
                   ),
                 ),
-                onPressed: () {
-                  // Handle favorite
+                onPressed: () async {
+                  // Toggle bookmark
+                  if (_isBookmarked) {
+                    await DatabaseHelper.instance.removeBookmark(widget.bike.id);
+                    setState(() {
+                      _isBookmarked = false;
+                    });
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Removed from bookmarks'),
+                          backgroundColor: AppColors.primary,
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    }
+                  } else {
+                    await DatabaseHelper.instance.addBookmark(widget.bike);
+                    setState(() {
+                      _isBookmarked = true;
+                    });
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Added to bookmarks'),
+                          backgroundColor: AppColors.success,
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    }
+                  }
                 },
               ),
             ],

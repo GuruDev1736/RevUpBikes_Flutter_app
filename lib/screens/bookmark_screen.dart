@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
 import '../models/bike_model.dart';
-import '../models/place_model.dart';
+import '../services/database_helper.dart';
 import 'bike_details_screen.dart';
 
 class BookmarkScreen extends StatefulWidget {
@@ -21,90 +21,9 @@ class _BookmarkScreenState extends State<BookmarkScreen>
   late Animation<Offset> _slideAnimation;
   late Animation<double> _scaleAnimation;
 
-  // Sample bookmarked bikes - in a real app, this would come from a database
-  final List<BikeModel> _bookmarkedBikes = [
-    BikeModel(
-      id: 1,
-      bikeName: 'Mountain Explorer',
-      bikeModel: 'MX-2024',
-      brand: 'TrekMaster',
-      bikeImage: 'assets/images/bikes/mountain_bike.jpg',
-      description:
-          'Perfect mountain bike for adventure trails and rough terrain exploration.',
-      pricePerHour: 50.0,
-      pricePerDay: 399.0,
-      place: Place(
-        id: 1,
-        placeName: 'Mumbai',
-        placeDescription: 'Commercial capital of India',
-        placeImage: 'mumbai.jpg',
-        placeLocation: 'Maharashtra, India',
-        createdAt: DateTime.now(),
-      ),
-      category: 'Mountain Bike',
-      engineCapacity: 250,
-      fuelType: 'Electric',
-      transmission: 'Automatic',
-      status: 'AVAILABLE',
-      registrationNumber: 'MH-01-AB-1234',
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    ),
-    BikeModel(
-      id: 2,
-      bikeName: 'City Cruiser Pro',
-      bikeModel: 'CC-Pro-2024',
-      brand: 'ElectroRide',
-      bikeImage: 'assets/images/bikes/electric_bike.jpg',
-      description:
-          'Comfortable electric cruiser ideal for city commuting and leisure rides.',
-      pricePerHour: 40.0,
-      pricePerDay: 299.0,
-      place: Place(
-        id: 2,
-        placeName: 'Delhi',
-        placeDescription: 'Capital city of India',
-        placeImage: 'delhi.jpg',
-        placeLocation: 'New Delhi, India',
-        createdAt: DateTime.now(),
-      ),
-      category: 'Cruiser',
-      engineCapacity: 200,
-      fuelType: 'Electric',
-      transmission: 'Automatic',
-      status: 'AVAILABLE',
-      registrationNumber: 'DL-01-CD-5678',
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    ),
-    BikeModel(
-      id: 3,
-      bikeName: 'Speed Demon',
-      bikeModel: 'SD-Sport-2024',
-      brand: 'RacerTech',
-      bikeImage: 'assets/images/bikes/sports_bike.jpg',
-      description:
-          'High-performance sports bike designed for speed enthusiasts and racing.',
-      pricePerHour: 75.0,
-      pricePerDay: 599.0,
-      place: Place(
-        id: 3,
-        placeName: 'Bangalore',
-        placeDescription: 'Silicon Valley of India',
-        placeImage: 'bangalore.jpg',
-        placeLocation: 'Karnataka, India',
-        createdAt: DateTime.now(),
-      ),
-      category: 'Sports Bike',
-      engineCapacity: 600,
-      fuelType: 'Petrol',
-      transmission: 'Manual',
-      status: 'RENTED',
-      registrationNumber: 'KA-01-EF-9012',
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    ),
-  ];
+  // Bookmarked bikes from database
+  List<BikeModel> _bookmarkedBikes = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -142,6 +61,9 @@ class _BookmarkScreenState extends State<BookmarkScreen>
 
     // Start animations
     _startAnimations();
+    
+    // Load bookmarks from database
+    _loadBookmarks();
   }
 
   void _startAnimations() async {
@@ -155,6 +77,32 @@ class _BookmarkScreenState extends State<BookmarkScreen>
     _scaleController.forward();
   }
 
+  Future<void> _loadBookmarks() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final bookmarks = await DatabaseHelper.instance.getAllBookmarks();
+      setState(() {
+        _bookmarkedBikes = bookmarks;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading bookmarks: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   void dispose() {
     _fadeController.dispose();
@@ -163,27 +111,39 @@ class _BookmarkScreenState extends State<BookmarkScreen>
     super.dispose();
   }
 
-  void _removeBookmark(int bikeId) {
+  void _removeBookmark(int bikeId) async {
+    // Store the bike for undo functionality
+    final bikeToRemove = _bookmarkedBikes.firstWhere((bike) => bike.id == bikeId);
+    
+    // Remove from database
+    await DatabaseHelper.instance.removeBookmark(bikeId);
+    
+    // Remove from UI
     setState(() {
       _bookmarkedBikes.removeWhere((bike) => bike.id == bikeId);
     });
 
-    // Show snackbar
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Removed from bookmarks'),
-        backgroundColor: AppColors.primary,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        action: SnackBarAction(
-          label: 'UNDO',
-          textColor: Colors.white,
-          onPressed: () {
-            // In a real app, restore the bookmark
-          },
+    // Show snackbar with undo option
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Removed from bookmarks'),
+          backgroundColor: AppColors.primary,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          action: SnackBarAction(
+            label: 'UNDO',
+            textColor: Colors.white,
+            onPressed: () async {
+              // Restore to database
+              await DatabaseHelper.instance.addBookmark(bikeToRemove);
+              // Reload bookmarks
+              _loadBookmarks();
+            },
+          ),
         ),
-      ),
-    );
+      );
+    }
   }
 
   @override
@@ -198,9 +158,13 @@ class _BookmarkScreenState extends State<BookmarkScreen>
 
             // Content
             Expanded(
-              child: _bookmarkedBikes.isEmpty
-                  ? _buildEmptyState()
-                  : _buildBookmarksList(),
+              child: _isLoading
+                  ? const Center(
+                      child: CircularProgressIndicator(),
+                    )
+                  : _bookmarkedBikes.isEmpty
+                      ? _buildEmptyState()
+                      : _buildBookmarksList(),
             ),
           ],
         ),
@@ -657,21 +621,29 @@ class _BookmarkScreenState extends State<BookmarkScreen>
               child: const Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.pop(context);
+                
+                // Clear from database
+                await DatabaseHelper.instance.clearAllBookmarks();
+                
+                // Clear from UI
                 setState(() {
                   _bookmarkedBikes.clear();
                 });
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Text('All bookmarks cleared'),
-                    backgroundColor: AppColors.primary,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text('All bookmarks cleared'),
+                      backgroundColor: AppColors.primary,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
-                  ),
-                );
+                  );
+                }
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
