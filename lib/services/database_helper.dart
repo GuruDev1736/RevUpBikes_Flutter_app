@@ -21,8 +21,9 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: _createDB,
+      onUpgrade: _upgradeDB,
     );
   }
 
@@ -37,6 +38,8 @@ class DatabaseHelper {
         description TEXT NOT NULL,
         pricePerHour REAL NOT NULL,
         pricePerDay REAL NOT NULL,
+        pricePerWeek REAL NOT NULL,
+        pricePerMonth REAL NOT NULL,
         placeId INTEGER NOT NULL,
         placeName TEXT NOT NULL,
         placeDescription TEXT NOT NULL,
@@ -55,10 +58,22 @@ class DatabaseHelper {
     ''');
   }
 
+  Future<void> _upgradeDB(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // Add new price columns
+      await db.execute(
+        'ALTER TABLE bookmarks ADD COLUMN pricePerWeek REAL NOT NULL DEFAULT 0',
+      );
+      await db.execute(
+        'ALTER TABLE bookmarks ADD COLUMN pricePerMonth REAL NOT NULL DEFAULT 0',
+      );
+    }
+  }
+
   // Add bookmark
   Future<int> addBookmark(BikeModel bike) async {
     final db = await database;
-    
+
     // Check if already bookmarked
     final existing = await db.query(
       'bookmarks',
@@ -70,44 +85,38 @@ class DatabaseHelper {
       return bike.id; // Already bookmarked
     }
 
-    return await db.insert(
-      'bookmarks',
-      {
-        'id': bike.id,
-        'bikeName': bike.bikeName,
-        'bikeModel': bike.bikeModel,
-        'brand': bike.brand,
-        'bikeImage': bike.bikeImage,
-        'description': bike.description,
-        'pricePerHour': bike.pricePerHour,
-        'pricePerDay': bike.pricePerDay,
-        'placeId': bike.place.id,
-        'placeName': bike.place.placeName,
-        'placeDescription': bike.place.placeDescription,
-        'placeImage': bike.place.placeImage,
-        'placeLocation': bike.place.placeLocation,
-        'category': bike.category,
-        'engineCapacity': bike.engineCapacity,
-        'fuelType': bike.fuelType,
-        'transmission': bike.transmission,
-        'status': bike.status,
-        'registrationNumber': bike.registrationNumber,
-        'createdAt': bike.createdAt.toIso8601String(),
-        'updatedAt': bike.updatedAt.toIso8601String(),
-        'bookmarkedAt': DateTime.now().toIso8601String(),
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    return await db.insert('bookmarks', {
+      'id': bike.id,
+      'bikeName': bike.bikeName,
+      'bikeModel': bike.bikeModel,
+      'brand': bike.brand,
+      'bikeImage': bike.bikeImage,
+      'description': bike.description,
+      'pricePerHour': bike.pricePerHour,
+      'pricePerDay': bike.pricePerDay,
+      'pricePerWeek': bike.pricePerWeek,
+      'pricePerMonth': bike.pricePerMonth,
+      'placeId': bike.place.id,
+      'placeName': bike.place.placeName,
+      'placeDescription': bike.place.placeDescription,
+      'placeImage': bike.place.placeImage,
+      'placeLocation': bike.place.placeLocation,
+      'category': bike.category,
+      'engineCapacity': bike.engineCapacity,
+      'fuelType': bike.fuelType,
+      'transmission': bike.transmission,
+      'status': bike.status,
+      'registrationNumber': bike.registrationNumber,
+      'createdAt': bike.createdAt.toIso8601String(),
+      'updatedAt': bike.updatedAt.toIso8601String(),
+      'bookmarkedAt': DateTime.now().toIso8601String(),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   // Remove bookmark
   Future<int> removeBookmark(int bikeId) async {
     final db = await database;
-    return await db.delete(
-      'bookmarks',
-      where: 'id = ?',
-      whereArgs: [bikeId],
-    );
+    return await db.delete('bookmarks', where: 'id = ?', whereArgs: [bikeId]);
   }
 
   // Check if bike is bookmarked
@@ -124,10 +133,7 @@ class DatabaseHelper {
   // Get all bookmarks
   Future<List<BikeModel>> getAllBookmarks() async {
     final db = await database;
-    final result = await db.query(
-      'bookmarks',
-      orderBy: 'bookmarkedAt DESC',
-    );
+    final result = await db.query('bookmarks', orderBy: 'bookmarkedAt DESC');
 
     return result.map((json) => _bikeFromJson(json)).toList();
   }
@@ -149,6 +155,8 @@ class DatabaseHelper {
       description: json['description'] as String,
       pricePerHour: json['pricePerHour'] as double,
       pricePerDay: json['pricePerDay'] as double,
+      pricePerWeek: json['pricePerWeek'] as double,
+      pricePerMonth: json['pricePerMonth'] as double,
       place: Place(
         id: json['placeId'] as int,
         placeName: json['placeName'] as String,

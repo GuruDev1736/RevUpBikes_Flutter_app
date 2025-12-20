@@ -179,192 +179,180 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                 const SizedBox(height: 30),
 
                 // Form
-                Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      maxWidth: 400, // Maximum width for better appearance
-                      minWidth: 280, // Minimum width for small screens
-                    ),
-                    child: AuthCard(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: MediaQuery.of(context).size.width > 400
-                            ? 40
-                            : 10,
-                        vertical: 32,
-                      ),
-                      child: Form(
-                        key: _formKey,
-                        child: Column(
-                          children: [
-                            // New Password Field
-                            CustomTextField(
-                              controller: _newPasswordController,
-                              label: 'New Password',
-                              icon: Icons.lock_outline_rounded,
-                              isPassword: true,
-                              isPasswordVisible: _isNewPasswordVisible,
-                              onPasswordToggle: () {
-                                setState(() {
-                                  _isNewPasswordVisible =
-                                      !_isNewPasswordVisible;
-                                });
-                              },
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Please enter a new password';
-                                }
-                                if (value.length < 6) {
-                                  return 'Password must be at least 6 characters';
-                                }
-                                if (!RegExp(
-                                  r'^(?=.*[A-Za-z])(?=.*\d)',
-                                ).hasMatch(value)) {
-                                  return 'Password must contain letters and numbers';
-                                }
-                                return null;
-                              },
-                            ),
+                AuthCard(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 32,
+                  ),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      children: [
+                        // New Password Field
+                        CustomTextField(
+                          controller: _newPasswordController,
+                          label: 'New Password',
+                          icon: Icons.lock_outline_rounded,
+                          isPassword: true,
+                          isPasswordVisible: _isNewPasswordVisible,
+                          onPasswordToggle: () {
+                            setState(() {
+                              _isNewPasswordVisible = !_isNewPasswordVisible;
+                            });
+                          },
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter a new password';
+                            }
+                            if (value.length < 6) {
+                              return 'Password must be at least 6 characters';
+                            }
+                            if (!RegExp(
+                              r'^(?=.*[A-Za-z])(?=.*\d)',
+                            ).hasMatch(value)) {
+                              return 'Password must contain letters and numbers';
+                            }
+                            return null;
+                          },
+                        ),
 
-                            const SizedBox(height: 20),
+                        const SizedBox(height: 20),
 
-                            // Confirm Password Field
-                            CustomTextField(
-                              controller: _confirmPasswordController,
-                              label: 'Confirm New Password',
-                              icon: Icons.lock_outline_rounded,
-                              isPassword: true,
-                              isPasswordVisible: _isConfirmPasswordVisible,
-                              onPasswordToggle: () {
-                                setState(() {
-                                  _isConfirmPasswordVisible =
-                                      !_isConfirmPasswordVisible;
-                                });
-                              },
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Please confirm your new password';
-                                }
-                                if (value != _newPasswordController.text) {
-                                  return 'Passwords do not match';
-                                }
-                                return null;
-                              },
-                            ),
+                        // Confirm Password Field
+                        CustomTextField(
+                          controller: _confirmPasswordController,
+                          label: 'Confirm New Password',
+                          icon: Icons.lock_outline_rounded,
+                          isPassword: true,
+                          isPasswordVisible: _isConfirmPasswordVisible,
+                          onPasswordToggle: () {
+                            setState(() {
+                              _isConfirmPasswordVisible =
+                                  !_isConfirmPasswordVisible;
+                            });
+                          },
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please confirm your new password';
+                            }
+                            if (value != _newPasswordController.text) {
+                              return 'Passwords do not match';
+                            }
+                            return null;
+                          },
+                        ),
 
-                            const SizedBox(height: 25),
+                        const SizedBox(height: 25),
 
-                            // Password requirements info
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.blue.shade50,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.blue.shade200),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                        // Password requirements info
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.blue.shade200),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
                                 children: [
-                                  Row(
-                                    children: [
-                                      Icon(
-                                        Icons.info_outline,
-                                        color: Colors.blue.shade600,
-                                        size: 16,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        'Password Requirements:',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.blue.shade700,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                    ],
+                                  Icon(
+                                    Icons.info_outline,
+                                    color: Colors.blue.shade600,
+                                    size: 16,
                                   ),
-                                  const SizedBox(height: 8),
+                                  const SizedBox(width: 8),
                                   Text(
-                                    '• At least 6 characters long\n'
-                                    '• Contains both letters and numbers\n'
-                                    '• Must match confirmation password',
+                                    'Password Requirements:',
                                     style: TextStyle(
-                                      color: Colors.blue.shade600,
-                                      fontSize: 13,
-                                      height: 1.4,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.blue.shade700,
+                                      fontSize: 14,
                                     ),
                                   ),
                                 ],
                               ),
+                              const SizedBox(height: 8),
+                              Text(
+                                '• At least 6 characters long\n'
+                                '• Contains both letters and numbers\n'
+                                '• Must match confirmation password',
+                                style: TextStyle(
+                                  color: Colors.blue.shade600,
+                                  fontSize: 13,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 30),
+
+                        // Reset Password Button
+                        _isLoading
+                            ? Container(
+                                width: double.infinity,
+                                height: 55,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                      AppColors.primary,
+                                      const Color(0xFFD32F2F),
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: const Center(
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              )
+                            : CustomButton(
+                                text: 'Reset Password',
+                                onPressed: _handleResetPassword,
+                              ),
+
+                        const SizedBox(height: 20),
+
+                        // Back to login
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Text(
+                              'Remember your password? ',
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 14,
+                              ),
                             ),
-
-                            const SizedBox(height: 30),
-
-                            // Reset Password Button
-                            _isLoading
-                                ? Container(
-                                    width: double.infinity,
-                                    height: 55,
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                        colors: [
-                                          AppColors.primary,
-                                          const Color(0xFFD32F2F),
-                                        ],
-                                      ),
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    child: const Center(
-                                      child: CircularProgressIndicator(
-                                        color: Colors.white,
-                                        strokeWidth: 2,
-                                      ),
-                                    ),
-                                  )
-                                : CustomButton(
-                                    text: 'Reset Password',
-                                    onPressed: _handleResetPassword,
+                            GestureDetector(
+                              onTap: () {
+                                Navigator.of(context).pushAndRemoveUntil(
+                                  MaterialPageRoute(
+                                    builder: (context) => const AuthScreen(),
                                   ),
-
-                            const SizedBox(height: 20),
-
-                            // Back to login
-                            Wrap(
-                              alignment: WrapAlignment.center,
-                              crossAxisAlignment: WrapCrossAlignment.center,
-                              children: [
-                                Text(
-                                  'Remember your password? ',
-                                  style: TextStyle(
-                                    color: Colors.grey[600],
-                                    fontSize: 14,
-                                  ),
+                                  (route) => false,
+                                );
+                              },
+                              child: const Text(
+                                'Back to Login',
+                                style: TextStyle(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
                                 ),
-                                GestureDetector(
-                                  onTap: () {
-                                    Navigator.of(context).pushAndRemoveUntil(
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            const AuthScreen(),
-                                      ),
-                                      (route) => false,
-                                    );
-                                  },
-                                  child: const Text(
-                                    'Back to Login',
-                                    style: TextStyle(
-                                      color: AppColors.primary,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ),
-                              ],
+                              ),
                             ),
                           ],
                         ),
-                      ),
+                      ],
                     ),
                   ),
                 ),

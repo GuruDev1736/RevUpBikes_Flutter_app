@@ -2,24 +2,110 @@ import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
 import '../models/bike_model.dart';
 import '../screens/bike_details_screen.dart';
+import '../screens/auth_screen.dart';
 import '../utils/city_image_provider.dart';
+import '../services/api_services.dart';
 
-class BikeCard extends StatelessWidget {
+class BikeCard extends StatefulWidget {
   final BikeModel bike;
 
   const BikeCard({super.key, required this.bike});
 
   @override
+  State<BikeCard> createState() => _BikeCardState();
+}
+
+class _BikeCardState extends State<BikeCard> {
+  bool _isLoggedIn = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkLoginStatus();
+  }
+
+  Future<void> _checkLoginStatus() async {
+    final loggedIn = await AuthService.isLoggedIn();
+    if (mounted) {
+      setState(() {
+        _isLoggedIn = loggedIn;
+      });
+    }
+  }
+
+  Future<void> _handleRentNow() async {
+    final isLoggedIn = await AuthService.isLoggedIn();
+
+    if (!isLoggedIn && mounted) {
+      final result = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Login Required'),
+          content: const Text(
+            'You need to login to rent a bike. Would you like to login now?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Login'),
+            ),
+          ],
+        ),
+      );
+
+      if (result == true && mounted) {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const AuthScreen()),
+        );
+        _checkLoginStatus();
+      }
+    } else if (mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => BikeDetailsScreen(bike: widget.bike),
+        ),
+      );
+    }
+  }
+
+  Widget _buildPriceItem(String price, String period) {
+    return Column(
+      children: [
+        Text(
+          price,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: AppColors.primary,
+          ),
+        ),
+        Text(
+          period,
+          style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+        ),
+      ],
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => BikeDetailsScreen(bike: bike),
-          ),
-        );
-      },
+      onTap: _isLoggedIn
+          ? () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => BikeDetailsScreen(bike: widget.bike),
+                ),
+              );
+            }
+          : null,
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
         decoration: BoxDecoration(
@@ -66,7 +152,7 @@ class BikeCard extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          bike.name,
+                          widget.bike.name,
                           style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -84,7 +170,7 @@ class BikeCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
-                          bike.type,
+                          widget.bike.type,
                           style: const TextStyle(
                             fontSize: 12,
                             color: AppColors.primary,
@@ -107,7 +193,7 @@ class BikeCard extends StatelessWidget {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        bike.location,
+                        widget.bike.location,
                         style: const TextStyle(
                           fontSize: 14,
                           color: AppColors.textSecondary,
@@ -118,91 +204,94 @@ class BikeCard extends StatelessWidget {
 
                   const SizedBox(height: 12),
 
-                  // Rating and Price Row
+                  // Rating
                   Row(
                     children: [
-                      // Rating
-                      Row(
-                        children: [
-                          const Icon(Icons.star, size: 16, color: Colors.amber),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${bike.rating}',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.text,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '(${bike.reviewCount})',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
+                      const Icon(Icons.star, size: 16, color: Colors.amber),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${widget.bike.rating}',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.text,
+                        ),
                       ),
-
-                      const Spacer(),
-
-                      // Price
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            '₹${bike.pricePerDay.toInt()}',
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.primary,
-                            ),
-                          ),
-                          const Text(
-                            'per day',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
+                      const SizedBox(width: 4),
+                      Text(
+                        '(${widget.bike.reviewCount})',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                     ],
                   ),
 
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
 
-                  // Rent Now Button
-                  SizedBox(
-                    width: double.infinity,
-                    height: 45,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => BikeDetailsScreen(bike: bike),
-                          ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: AppColors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(15),
+                  // All Prices
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _buildPriceItem(
+                          '₹${widget.bike.pricePerDay.toInt()}',
+                          '/day',
                         ),
-                        elevation: 0,
-                      ),
-                      child: const Text(
-                        'Rent Now',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                        Container(
+                          width: 1,
+                          height: 30,
+                          color: AppColors.grey.withOpacity(0.3),
+                        ),
+                        _buildPriceItem(
+                          '₹${(widget.bike.pricePerWeek / 1000).toStringAsFixed(1)}k',
+                          '/week',
+                        ),
+                        Container(
+                          width: 1,
+                          height: 30,
+                          color: AppColors.grey.withOpacity(0.3),
+                        ),
+                        _buildPriceItem(
+                          '₹${(widget.bike.pricePerMonth / 1000).toStringAsFixed(1)}k',
+                          '/mon',
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  if (_isLoggedIn) ...[
+                    const SizedBox(height: 16),
+                    // Rent Now Button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 45,
+                      child: ElevatedButton(
+                        onPressed: _handleRentNow,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: AppColors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(15),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: const Text(
+                          'Rent Now',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),
@@ -214,10 +303,10 @@ class BikeCard extends StatelessWidget {
 
   Widget _buildBikeImage() {
     // Use the bike image from API first, then fallback to predefined images
-    String? imageUrl = bike.bikeImage.isNotEmpty
-        ? bike.bikeImage
-        : (CityImageProvider.getBikeImageUrl(bike.name) ??
-              CityImageProvider.getBikeImageByType(bike.type));
+    String? imageUrl = widget.bike.bikeImage.isNotEmpty
+        ? widget.bike.bikeImage
+        : (CityImageProvider.getBikeImageUrl(widget.bike.name) ??
+              CityImageProvider.getBikeImageByType(widget.bike.type));
 
     if (imageUrl != null && imageUrl.isNotEmpty) {
       // Check if it's a network URL or local asset

@@ -206,6 +206,15 @@ class _AuthScreenState extends State<AuthScreen>
   }
 
   Future<void> _navigateToHome() async {
+    // Check if this screen was pushed (can pop) or is root
+    final canPop = Navigator.of(context).canPop();
+
+    if (canPop) {
+      // If pushed, just pop back and let the caller handle navigation
+      Navigator.of(context).pop(true);
+      return;
+    }
+
     // Check user role to determine which dashboard to show
     final isAdmin = await AuthService.isAdmin();
 

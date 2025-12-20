@@ -1,8 +1,20 @@
 import 'package:flutter/material.dart';
 import 'screens/splash_screen.dart';
+import 'screens/auth_screen.dart';
 import 'utils/app_colors.dart';
+import 'services/api_services.dart';
+
+// Global navigator key for navigation from anywhere
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() {
+  // Set up token expiration handler
+  AuthService.onTokenExpired = () {
+    navigatorKey.currentState?.pushNamedAndRemoveUntil(
+      '/login',
+      (route) => false,
+    );
+  };
   runApp(const RevUpApp());
 }
 
@@ -12,6 +24,7 @@ class RevUpApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       title: 'RevUp Bikes',
       theme: ThemeData(
         primarySwatch: Colors.red,
@@ -57,6 +70,7 @@ class RevUpApp extends StatelessWidget {
       ),
       home: const SplashScreen(),
       debugShowCheckedModeBanner: false,
+      routes: {'/login': (context) => const AuthScreen()},
     );
   }
 }

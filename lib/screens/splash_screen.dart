@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
-import 'auth_screen.dart';
-import '../services/api_services.dart';
+import 'home_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -16,8 +15,8 @@ class _SplashScreenState extends State<SplashScreen>
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
 
-  // Note: This app now requires login on every app launch
-  // No persistent authentication - users must login each time
+  // Note: This app now allows browsing without login
+  // Login is only required when user wants to book a bike
 
   @override
   void initState() {
@@ -37,22 +36,20 @@ class _SplashScreenState extends State<SplashScreen>
 
     _animationController.forward();
 
-    // Clear stored auth data and navigate to auth screen after 3 seconds
+    // Navigate directly to home screen after 3 seconds
     Future.delayed(const Duration(seconds: 3), () async {
       if (mounted) {
-        // Clear authentication tokens but preserve saved credentials for convenience
-        await AuthService.clearAuthData();
-        _navigateToAuth();
+        _navigateToHome();
       }
     });
   }
 
-  void _navigateToAuth() {
-    // Always navigate to auth screen - no persistent login
+  void _navigateToHome() {
+    // Navigate to home screen - login is only required for booking
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
-            const AuthScreen(),
+            const HomeScreen(),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           const begin = Offset(1.0, 0.0);
           const end = Offset.zero;

@@ -10,6 +10,8 @@ class BikeModel {
   final String description;
   final double pricePerHour;
   final double pricePerDay;
+  final double pricePerWeek;
+  final double pricePerMonth;
   final Place place;
   final String category;
   final int engineCapacity;
@@ -44,6 +46,8 @@ class BikeModel {
     required this.description,
     required this.pricePerHour,
     required this.pricePerDay,
+    required this.pricePerWeek,
+    required this.pricePerMonth,
     required this.place,
     required this.category,
     required this.engineCapacity,
@@ -65,6 +69,8 @@ class BikeModel {
       description: json['description'] ?? '',
       pricePerHour: (json['pricePerHour'] as num?)?.toDouble() ?? 0.0,
       pricePerDay: (json['pricePerDay'] as num?)?.toDouble() ?? 0.0,
+      pricePerWeek: (json['pricePerWeek'] as num?)?.toDouble() ?? 0.0,
+      pricePerMonth: (json['pricePerMonth'] as num?)?.toDouble() ?? 0.0,
       place: Place.fromJson(json['place'] ?? {}),
       category: json['category'] ?? '',
       engineCapacity: json['engineCapacity'] ?? 0,
@@ -87,6 +93,8 @@ class BikeModel {
       'description': description,
       'pricePerHour': pricePerHour,
       'pricePerDay': pricePerDay,
+      'pricePerWeek': pricePerWeek,
+      'pricePerMonth': pricePerMonth,
       'place': place.toJson(),
       'category': category,
       'engineCapacity': engineCapacity,

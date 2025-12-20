@@ -6,11 +6,11 @@ import '../models/banner_model.dart';
 import '../widgets/bike_card.dart';
 import '../widgets/banner_widget.dart';
 import '../components/image_slider.dart';
-import '../components/places_category.dart';
 import '../services/api_services.dart';
 import 'profile_screen.dart';
 import 'bookmark_screen.dart';
 import 'my_rides_screen.dart';
+import 'auth_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -24,16 +24,19 @@ class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _selectedCategory = 'All';
   Place? _selectedPlace;
+  List<Place> _allPlaces = [];
   List<BikeModel> _allBikes = [];
   List<BikeModel> _filteredBikes = [];
   List<BannerModel> _banners = [];
   bool _isLoadingBikes = false;
   bool _isLoadingBanners = false;
+  bool _isLoadingPlaces = false;
 
   @override
   void initState() {
     super.initState();
     _loadBanners();
+    _loadPlaces();
     _loadBikes();
   }
 
@@ -76,21 +79,47 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _loadPlaces() async {
+    setState(() {
+      _isLoadingPlaces = true;
+    });
+
+    try {
+      final response = await AuthService.getAllPlaces();
+
+      if (response['STS'] == '200' && response['CONTENT'] != null) {
+        final List<dynamic> placesJson = response['CONTENT'];
+        final List<Place> places = placesJson
+            .map((json) => Place.fromJson(json))
+            .toList();
+
+        setState(() {
+          _allPlaces = places;
+          _isLoadingPlaces = false;
+        });
+      } else {
+        setState(() {
+          _allPlaces = [];
+          _isLoadingPlaces = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _allPlaces = [];
+        _isLoadingPlaces = false;
+      });
+      print('Error loading places: $e');
+    }
+  }
+
   Future<void> _loadBikes() async {
     setState(() {
       _isLoadingBikes = true;
     });
 
     try {
-      Map<String, dynamic> response;
-
-      if (_selectedPlace != null) {
-        // Get bikes filtered by place
-        response = await AuthService.getBikesByPlace(_selectedPlace!.id);
-      } else {
-        // Get all bikes
-        response = await AuthService.getAllBikes();
-      }
+      // Always get all bikes and filter locally
+      final response = await AuthService.getAllBikes();
 
       if (response['STS'] == '200' && response['CONTENT'] != null) {
         final List<dynamic> bikesJson = response['CONTENT'];
@@ -134,24 +163,61 @@ class _HomeScreenState extends State<HomeScreen> {
             bike.type.toLowerCase().contains(
               _searchController.text.toLowerCase(),
             );
-        // Place filtering is now handled by API call in _loadBikes
-        return matchesCategory && matchesSearch;
+        bool matchesPlace =
+            _selectedPlace == null || bike.place.id == _selectedPlace!.id;
+        return matchesCategory && matchesSearch && matchesPlace;
       }).toList();
     });
   }
 
-  void _onPlaceSelected(Place place) {
-    setState(() {
-      // If the same place is selected again, deselect it (show all bikes)
-      if (_selectedPlace?.id == place.id) {
-        _selectedPlace = null;
-      } else {
-        _selectedPlace = place;
-      }
-    });
+  Future<void> _checkLoginAndNavigate(Widget destination) async {
+    final isLoggedIn = await AuthService.isLoggedIn();
 
-    // Reload bikes based on selected place
-    _loadBikes();
+    if (!isLoggedIn && mounted) {
+      // Show login dialog
+      final result = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Login Required'),
+          content: const Text(
+            'You need to login to access this feature. Would you like to login now?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Login'),
+            ),
+          ],
+        ),
+      );
+
+      if (result == true && mounted) {
+        // Navigate to login screen
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const AuthScreen()),
+        );
+
+        // After login, check again if logged in and navigate
+        final nowLoggedIn = await AuthService.isLoggedIn();
+        if (nowLoggedIn && mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => destination),
+          );
+        }
+      }
+    } else if (mounted) {
+      // User is logged in, navigate directly
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => destination),
+      );
+    }
   }
 
   void _onBannerTap(BannerModel banner) {
@@ -162,11 +228,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _launchUrl(String url) async {
     try {
-      final Uri uri = Uri.parse(url);
+      // Add https:// if the URL doesn't have a protocol
+      String formattedUrl = url;
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        formattedUrl = 'https://$url';
+      }
+
+      final Uri uri = Uri.parse(formattedUrl);
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
       } else {
-        throw 'Could not launch $url';
+        throw 'Could not launch $formattedUrl';
       }
     } catch (e) {
       print('Error launching URL: $e');
@@ -198,14 +270,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   // Banner carousel
                   _buildBannerSection(),
 
-                  // Places categories (API-powered)
-                  ApiPlacesCategory(
-                    onPlaceSelected: _onPlaceSelected,
-                    selectedPlace: _selectedPlace,
-                  ),
-
-                  // Search bar
-                  _buildSearchBar(),
+                  // Search bar and place filter
+                  _buildSearchAndFilter(),
 
                   // Bike Categories
                   _buildCategories(),
@@ -292,26 +358,101 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-          GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const ProfileScreen()),
-              );
-            },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              child: Hero(
-                tag: 'profile_image',
-                child: CircleAvatar(
-                  radius: 25,
-                  backgroundColor: AppColors.white.withOpacity(0.2),
-                  child: const Icon(
-                    Icons.person,
-                    color: AppColors.white,
-                    size: 30,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchAndFilter() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.grey.withOpacity(0.1),
+                    spreadRadius: 0,
+                    blurRadius: 10,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: TextField(
+                controller: _searchController,
+                onChanged: (value) => _filterBikes(),
+                decoration: InputDecoration(
+                  hintText: 'Search for bikes...',
+                  prefixIcon: const Icon(
+                    Icons.search,
+                    color: AppColors.primary,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    borderSide: BorderSide.none,
+                  ),
+                  filled: true,
+                  fillColor: AppColors.white,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
+                  hintStyle: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w400,
                   ),
                 ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Place filter button
+          GestureDetector(
+            onTap: _showPlaceFilter,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: _selectedPlace != null
+                    ? AppColors.primary
+                    : AppColors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.grey.withOpacity(0.1),
+                    spreadRadius: 0,
+                    blurRadius: 10,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.location_on,
+                    color: _selectedPlace != null
+                        ? AppColors.white
+                        : AppColors.primary,
+                    size: 22,
+                  ),
+                  if (_selectedPlace != null) ...[
+                    const SizedBox(width: 4),
+                    Text(
+                      _selectedPlace!.placeName.length > 8
+                          ? '${_selectedPlace!.placeName.substring(0, 8)}...'
+                          : _selectedPlace!.placeName,
+                      style: const TextStyle(
+                        color: AppColors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
           ),
@@ -320,41 +461,130 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildSearchBar() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(20, 10, 20, 20), // Reduced top margin
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.grey.withOpacity(0.1),
-            spreadRadius: 0,
-            blurRadius: 10,
-            offset: const Offset(0, 5),
+  void _showPlaceFilter() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
           ),
-        ],
-      ),
-      child: TextField(
-        controller: _searchController,
-        onChanged: (value) => _filterBikes(),
-        decoration: InputDecoration(
-          hintText: 'Search for bikes...',
-          prefixIcon: const Icon(Icons.search, color: AppColors.primary),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(20),
-            borderSide: BorderSide.none,
-          ),
-          filled: true,
-          fillColor: AppColors.white,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: 16,
-          ),
-          hintStyle: TextStyle(
-            color: AppColors.textSecondary,
-            fontWeight: FontWeight.w400,
-          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.grey.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  const Icon(Icons.location_on, color: AppColors.primary),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Filter by Location',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.text,
+                    ),
+                  ),
+                  const Spacer(),
+                  if (_selectedPlace != null)
+                    TextButton(
+                      onPressed: () {
+                        setState(() {
+                          _selectedPlace = null;
+                        });
+                        _filterBikes();
+                        Navigator.pop(context);
+                      },
+                      child: const Text('Clear'),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (_isLoadingPlaces)
+              const Padding(
+                padding: EdgeInsets.all(40),
+                child: CircularProgressIndicator(),
+              )
+            else if (_allPlaces.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(40),
+                child: Text(
+                  'No locations available',
+                  style: TextStyle(color: AppColors.grey),
+                ),
+              )
+            else
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  itemCount: _allPlaces.length,
+                  itemBuilder: (context, index) {
+                    final place = _allPlaces[index];
+                    final isSelected = _selectedPlace?.id == place.id;
+
+                    return ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? AppColors.primary.withOpacity(0.1)
+                              : AppColors.background,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.location_city,
+                          color: isSelected
+                              ? AppColors.primary
+                              : AppColors.grey,
+                        ),
+                      ),
+                      title: Text(
+                        place.placeName,
+                        style: TextStyle(
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                          color: isSelected
+                              ? AppColors.primary
+                              : AppColors.text,
+                        ),
+                      ),
+                      trailing: isSelected
+                          ? const Icon(
+                              Icons.check_circle,
+                              color: AppColors.primary,
+                            )
+                          : null,
+                      onTap: () {
+                        setState(() {
+                          _selectedPlace = place;
+                        });
+                        _filterBikes();
+                        Navigator.pop(context);
+                      },
+                    );
+                  },
+                ),
+              ),
+            const SizedBox(height: 20),
+          ],
         ),
       ),
     );
@@ -589,11 +819,8 @@ class _HomeScreenState extends State<HomeScreen> {
               // Already on home
               break;
             case 1:
-              // Navigate to my rides
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const MyRidesScreen()),
-              );
+              // Navigate to my rides (requires login)
+              _checkLoginAndNavigate(const MyRidesScreen());
               break;
             case 2:
               // Navigate to bookmarks
@@ -603,11 +830,8 @@ class _HomeScreenState extends State<HomeScreen> {
               );
               break;
             case 3:
-              // Navigate to profile
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const ProfileScreen()),
-              );
+              // Navigate to profile (requires login)
+              _checkLoginAndNavigate(const ProfileScreen());
               break;
           }
         },

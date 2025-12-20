@@ -3,6 +3,9 @@ import 'package:dio/dio.dart';
 import 'dart:convert';
 
 class AuthService {
+  // Callback for token expiration
+  static void Function()? onTokenExpired;
+
   static const String _tokenKey = 'auth_token';
   static const String _userDataKey = 'user_data';
   static const String _emailKey = 'saved_email';
@@ -306,6 +309,9 @@ class AuthService {
     double totalAmount,
     String aadharcardUrl,
     String drivingLicenseUrl,
+    String alternatePhone,
+    String currentAddress,
+    String permanentAddress,
   ) async {
     try {
       final response = await _dio.post(
@@ -317,6 +323,9 @@ class AuthService {
           "totalAmount": totalAmount,
           "aadharcardUrl": aadharcardUrl,
           "drivingLicenseUrl": drivingLicenseUrl,
+          "alternatePhone": alternatePhone,
+          "currentAddress": currentAddress,
+          "permanentAddress": permanentAddress,
         },
       );
 
@@ -629,11 +638,14 @@ class AuthTokenInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
-    // Handle 401 Unauthorized - could trigger logout if needed
+    // Handle 401 Unauthorized - token expired or invalid
     if (err.response?.statusCode == 401) {
       print("🚫 Unauthorized request - token may be invalid or expired");
-      // You could add automatic logout here if needed:
-      // AuthService.logout();
+      // Trigger logout and redirect to login
+      AuthService.logout();
+      if (AuthService.onTokenExpired != null) {
+        AuthService.onTokenExpired!();
+      }
     }
     super.onError(err, handler);
   }

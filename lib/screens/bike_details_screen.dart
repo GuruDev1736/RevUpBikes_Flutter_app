@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:device_info_plus/device_info_plus.dart';
@@ -11,6 +12,9 @@ import '../models/bike_model.dart';
 import '../services/api_services.dart';
 import '../services/database_helper.dart';
 import 'booking_confirmation_screen.dart';
+import 'auth_screen.dart';
+import 'terms_and_conditions_screen.dart';
+import 'deposit_terms_screen.dart';
 
 class BikeDetailsScreen extends StatefulWidget {
   final BikeModel bike;
@@ -43,6 +47,22 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
   DateTime? _fromDateTime;
   DateTime? _toDateTime;
 
+  // Rental period type
+  String _rentalPeriod = 'Day'; // Day, Week, or Month
+
+  // Additional user information
+  final TextEditingController _alternatePhoneController =
+      TextEditingController();
+  final TextEditingController _currentAddressController =
+      TextEditingController();
+  final TextEditingController _permanentAddressController =
+      TextEditingController();
+  bool _sameAsCurrentAddress = false;
+
+  // Terms and conditions agreement
+  bool _acceptedTermsAndConditions = false;
+  bool _acceptedDepositTerms = false;
+
   // Bookmark state
   bool _isBookmarked = false;
 
@@ -53,9 +73,16 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
     return difference.inDays > 0 ? difference.inDays : 1;
   }
 
-  // Calculate total cost based on selected dates
+  // Calculate total cost based on selected rental period
   double get _totalCost {
-    return widget.bike.pricePerDay * _calculatedDays;
+    if (_rentalPeriod == 'Week') {
+      return widget.bike.pricePerWeek;
+    } else if (_rentalPeriod == 'Month') {
+      return widget.bike.pricePerMonth;
+    } else {
+      // Day pricing - multiply by number of days
+      return widget.bike.pricePerDay * _calculatedDays;
+    }
   }
 
   @override
@@ -66,7 +93,9 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
   }
 
   Future<void> _checkBookmarkStatus() async {
-    final isBookmarked = await DatabaseHelper.instance.isBookmarked(widget.bike.id);
+    final isBookmarked = await DatabaseHelper.instance.isBookmarked(
+      widget.bike.id,
+    );
     setState(() {
       _isBookmarked = isBookmarked;
     });
@@ -75,6 +104,9 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
   @override
   void dispose() {
     _razorpay.clear();
+    _alternatePhoneController.dispose();
+    _currentAddressController.dispose();
+    _permanentAddressController.dispose();
     super.dispose();
   }
 
@@ -115,6 +147,9 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
         _totalCost,
         _aadharCardUrl ?? '',
         _drivingLicenseUrl ?? '',
+        _alternatePhoneController.text.trim(),
+        _currentAddressController.text.trim(),
+        _permanentAddressController.text.trim(),
       );
 
       setState(() {
@@ -339,7 +374,9 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
                 onPressed: () async {
                   // Toggle bookmark
                   if (_isBookmarked) {
-                    await DatabaseHelper.instance.removeBookmark(widget.bike.id);
+                    await DatabaseHelper.instance.removeBookmark(
+                      widget.bike.id,
+                    );
                     setState(() {
                       _isBookmarked = false;
                     });
@@ -710,6 +747,11 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
 
                     const SizedBox(height: 24),
 
+                    // Personal Details Section
+                    _buildPersonalDetailsForm(),
+
+                    const SizedBox(height: 24),
+
                     // Document Upload Section
                     _buildDocumentUpload(),
 
@@ -776,7 +818,52 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
     );
   }
 
-  void _handleBooking() {
+  void _handleBooking() async {
+    // Check if user is logged in first
+    final isLoggedIn = await AuthService.isLoggedIn();
+
+    if (!isLoggedIn) {
+      // Show login dialog or navigate to login screen
+      final result = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Login Required'),
+          content: const Text(
+            'You need to login to book a bike. Would you like to login now?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Login'),
+            ),
+          ],
+        ),
+      );
+
+      if (result == true && mounted) {
+        // Navigate to login screen
+        final loginResult = await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const AuthScreen()),
+        );
+
+        // If login was successful, proceed with booking
+        if (loginResult == true) {
+          _proceedWithBooking();
+        }
+      }
+      return;
+    }
+
+    // User is logged in, proceed with booking
+    _proceedWithBooking();
+  }
+
+  void _proceedWithBooking() {
     // Validate required fields
     if (!_canProceedWithBooking()) {
       String message = '';
@@ -874,6 +961,82 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
           ),
         ),
         const SizedBox(height: 12),
+        // Rental Period Type Dropdown
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: _rentalPeriod,
+              isExpanded: true,
+              icon: const Icon(Icons.arrow_drop_down, color: AppColors.primary),
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: AppColors.text,
+              ),
+              items: [
+                DropdownMenuItem(
+                  value: 'Day',
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.today,
+                        color: AppColors.primary,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Text('Per Day - ₹${widget.bike.pricePerDay.toInt()}'),
+                    ],
+                  ),
+                ),
+                DropdownMenuItem(
+                  value: 'Week',
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.date_range,
+                        color: AppColors.primary,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Text('Per Week - ₹${widget.bike.pricePerWeek.toInt()}'),
+                    ],
+                  ),
+                ),
+                DropdownMenuItem(
+                  value: 'Month',
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.calendar_month,
+                        color: AppColors.primary,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Text('Per Month - ₹${widget.bike.pricePerMonth.toInt()}'),
+                    ],
+                  ),
+                ),
+              ],
+              onChanged: (String? newValue) {
+                if (newValue != null) {
+                  setState(() {
+                    _rentalPeriod = newValue;
+                    // Reset dates when changing rental period
+                    _fromDateTime = null;
+                    _toDateTime = null;
+                  });
+                }
+              },
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
         Row(
           children: [
             Expanded(
@@ -888,13 +1051,18 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _buildDateTimeCard(
-                title: 'To',
-                subtitle: _toDateTime == null
-                    ? 'Select date & time'
-                    : _formatDateTime(_toDateTime!),
-                icon: Icons.access_time_filled,
-                onTap: () => _selectDateTime(false),
+              child: Opacity(
+                opacity: (_rentalPeriod == 'Week' || _rentalPeriod == 'Month')
+                    ? 0.6
+                    : 1.0,
+                child: _buildDateTimeCard(
+                  title: 'To',
+                  subtitle: _toDateTime == null
+                      ? 'Select date & time'
+                      : _formatDateTime(_toDateTime!),
+                  icon: Icons.access_time_filled,
+                  onTap: () => _selectDateTime(false),
+                ),
               ),
             ),
           ],
@@ -957,6 +1125,287 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildPersonalDetailsForm() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Text(
+              'Personal Details',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: AppColors.text,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.error.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text(
+                'Required',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: AppColors.error,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // Alternate Phone Number
+        TextField(
+          controller: _alternatePhoneController,
+          keyboardType: TextInputType.phone,
+          maxLength: 10,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: InputDecoration(
+            labelText: 'Alternate Phone Number',
+            hintText: 'Enter alternate contact number',
+            prefixIcon: const Icon(Icons.phone, color: AppColors.primary),
+            filled: true,
+            fillColor: AppColors.white,
+            counterText: '',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(color: AppColors.grey.withOpacity(0.3)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(color: AppColors.grey.withOpacity(0.3)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: AppColors.primary, width: 2),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Current Address
+        TextField(
+          controller: _currentAddressController,
+          maxLines: 3,
+          decoration: InputDecoration(
+            labelText: 'Current Address',
+            hintText: 'Enter your current residential address',
+            prefixIcon: const Icon(Icons.location_on, color: AppColors.primary),
+            filled: true,
+            fillColor: AppColors.white,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(color: AppColors.grey.withOpacity(0.3)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(color: AppColors.grey.withOpacity(0.3)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: AppColors.primary, width: 2),
+            ),
+            alignLabelWithHint: true,
+          ),
+          onChanged: (value) {
+            if (_sameAsCurrentAddress) {
+              setState(() {
+                _permanentAddressController.text = value;
+              });
+            }
+          },
+        ),
+        const SizedBox(height: 12),
+
+        // Same as Current Address Checkbox
+        Row(
+          children: [
+            Checkbox(
+              value: _sameAsCurrentAddress,
+              activeColor: AppColors.primary,
+              onChanged: (value) {
+                setState(() {
+                  _sameAsCurrentAddress = value ?? false;
+                  if (_sameAsCurrentAddress) {
+                    _permanentAddressController.text =
+                        _currentAddressController.text;
+                  }
+                });
+              },
+            ),
+            const Text(
+              'Permanent address is same as current address',
+              style: TextStyle(fontSize: 14, color: AppColors.text),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // Permanent Address
+        TextField(
+          controller: _permanentAddressController,
+          maxLines: 3,
+          enabled: !_sameAsCurrentAddress,
+          decoration: InputDecoration(
+            labelText: 'Permanent Address',
+            hintText: 'Enter your permanent address',
+            prefixIcon: const Icon(Icons.home, color: AppColors.primary),
+            filled: true,
+            fillColor: _sameAsCurrentAddress
+                ? AppColors.grey.withOpacity(0.1)
+                : AppColors.white,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(color: AppColors.grey.withOpacity(0.3)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(color: AppColors.grey.withOpacity(0.3)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: AppColors.primary, width: 2),
+            ),
+            disabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(color: AppColors.grey.withOpacity(0.2)),
+            ),
+            alignLabelWithHint: true,
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // Terms and Conditions Section
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+          ),
+          child: Column(
+            children: [
+              // Terms and Conditions Checkbox
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Checkbox(
+                    value: _acceptedTermsAndConditions,
+                    activeColor: AppColors.primary,
+                    onChanged: (value) {
+                      setState(() {
+                        _acceptedTermsAndConditions = value ?? false;
+                      });
+                    },
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  const TermsAndConditionsScreen(),
+                            ),
+                          );
+                        },
+                        child: RichText(
+                          text: TextSpan(
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: AppColors.text,
+                            ),
+                            children: [
+                              const TextSpan(text: 'I agree to the '),
+                              TextSpan(
+                                text: 'Terms and Conditions',
+                                style: const TextStyle(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w600,
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                              const TextSpan(
+                                text: ' of RevUp Bikes rental service',
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              // Deposit Terms Checkbox
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Checkbox(
+                    value: _acceptedDepositTerms,
+                    activeColor: AppColors.primary,
+                    onChanged: (value) {
+                      setState(() {
+                        _acceptedDepositTerms = value ?? false;
+                      });
+                    },
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const DepositTermsScreen(),
+                            ),
+                          );
+                        },
+                        child: RichText(
+                          text: TextSpan(
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: AppColors.text,
+                            ),
+                            children: [
+                              const TextSpan(
+                                text: 'I understand and agree to the ',
+                              ),
+                              TextSpan(
+                                text: 'Deposit Terms',
+                                style: const TextStyle(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w600,
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                              const TextSpan(
+                                text:
+                                    ' including security deposit and refund policy',
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -1173,6 +1622,19 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
   }
 
   Future<void> _selectDateTime(bool isFromDate) async {
+    // For Week and Month periods, only allow selecting the From date
+    if (!isFromDate && (_rentalPeriod == 'Week' || _rentalPeriod == 'Month')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'End date is automatically set for ${_rentalPeriod.toLowerCase()} rental',
+          ),
+          backgroundColor: AppColors.primary,
+        ),
+      );
+      return;
+    }
+
     // First select date
     final DateTime? pickedDate = await showDatePicker(
       context: context,
@@ -1223,10 +1685,44 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
           pickedTime.minute,
         );
 
+        // Check if the selected date/time is in the past
+        final now = DateTime.now();
+        if (selectedDateTime.isBefore(now)) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Please select a future date and time'),
+                backgroundColor: AppColors.error,
+              ),
+            );
+          }
+          return;
+        }
+
+        // If selecting "To" date, ensure it's after "From" date
+        if (!isFromDate && _fromDateTime != null) {
+          if (selectedDateTime.isBefore(_fromDateTime!)) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('End date must be after start date'),
+                  backgroundColor: AppColors.error,
+                ),
+              );
+            }
+            return;
+          }
+        }
+
         setState(() {
           if (isFromDate) {
             _fromDateTime = selectedDateTime;
-            // Don't automatically set to date, let user choose
+            // Auto-calculate end date based on rental period
+            if (_rentalPeriod == 'Week') {
+              _toDateTime = selectedDateTime.add(const Duration(days: 7));
+            } else if (_rentalPeriod == 'Month') {
+              _toDateTime = selectedDateTime.add(const Duration(days: 30));
+            }
           } else {
             _toDateTime = selectedDateTime;
           }
@@ -1496,6 +1992,11 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
         _drivingLicenseUrl != null &&
         _fromDateTime != null &&
         _toDateTime != null &&
+        _alternatePhoneController.text.trim().isNotEmpty &&
+        _currentAddressController.text.trim().isNotEmpty &&
+        _permanentAddressController.text.trim().isNotEmpty &&
+        _acceptedTermsAndConditions &&
+        _acceptedDepositTerms &&
         widget.bike.isAvailable &&
         !_isUploadingAadhar &&
         !_isUploadingLicense &&
