@@ -1795,9 +1795,11 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
                 });
               },
             ),
-            const Text(
-              'Permanent address is same as current address',
-              style: TextStyle(fontSize: 14, color: AppColors.text),
+            const Expanded(
+              child: Text(
+                'Permanent address is same as current address',
+                style: TextStyle(fontSize: 14, color: AppColors.text),
+              ),
             ),
           ],
         ),
@@ -2267,14 +2269,39 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
             permissionStatus = await Permission.storage.request();
           }
         } else {
+          // For iOS, request photos permission
           permissionStatus = await Permission.photos.request();
         }
       }
 
-      if (permissionStatus != PermissionStatus.granted) {
-        String message = source == ImageSource.camera
-            ? 'Camera permission is required to take photos'
-            : 'Storage permission is required to access gallery';
+      // For iOS photo library, 'limited' access is also acceptable
+      final bool hasPermission =
+          permissionStatus.isGranted ||
+          (Platform.isIOS &&
+              source == ImageSource.gallery &&
+              permissionStatus == PermissionStatus.limited);
+
+      // Debug: Print permission status
+      print('🔍 Permission Status: $permissionStatus');
+      print('🔍 Source: $source');
+      print('🔍 Platform: ${Platform.isIOS ? "iOS" : "Android"}');
+      print('🔍 Has Permission: $hasPermission');
+
+      if (!hasPermission) {
+        String message;
+        if (permissionStatus.isDenied) {
+          message = source == ImageSource.camera
+              ? 'Camera permission is required to take photos'
+              : 'Photo library permission is required to select images';
+        } else if (permissionStatus.isPermanentlyDenied) {
+          message = source == ImageSource.camera
+              ? 'Camera permission is permanently denied. Please enable it in Settings.'
+              : 'Photo library permission is permanently denied. Please enable it in Settings.';
+        } else {
+          message = source == ImageSource.camera
+              ? 'Camera permission is required to take photos'
+              : 'Photo library permission is required to select images';
+        }
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
