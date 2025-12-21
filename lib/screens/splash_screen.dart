@@ -99,10 +99,11 @@ class _SplashScreenState extends State<SplashScreen>
                     child: FadeTransition(
                       opacity: _fadeAnimation,
                       child: Container(
-                        width: 120,
-                        height: 120,
+                        width: 150,
+                        height: 150,
+                        padding: const EdgeInsets.all(15),
                         decoration: BoxDecoration(
-                          color: AppColors.primary,
+                          color: AppColors.white,
                           borderRadius: BorderRadius.circular(30),
                           boxShadow: [
                             BoxShadow(
@@ -113,10 +114,17 @@ class _SplashScreenState extends State<SplashScreen>
                             ),
                           ],
                         ),
-                        child: const Icon(
-                          Icons.directions_bike_rounded,
-                          color: AppColors.white,
-                          size: 60,
+                        child: Image.asset(
+                          'assets/images/app_logo.png',
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) {
+                            // Fallback to icon if image not found
+                            return const Icon(
+                              Icons.directions_bike_rounded,
+                              color: AppColors.primary,
+                              size: 60,
+                            );
+                          },
                         ),
                       ),
                     ),

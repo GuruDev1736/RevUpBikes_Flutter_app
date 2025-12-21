@@ -474,6 +474,84 @@ class AuthService {
     }
   }
 
+  /// Get all bike requests for a user
+  static Future<Map<String, dynamic>> getUserBikeRequests(int userId) async {
+    try {
+      final response = await _dio.get('/api/request-bike/user/$userId');
+
+      if (response.statusCode == 200 && response.data['STS'] == '200') {
+        return response.data;
+      } else {
+        return {
+          'STS': '400',
+          'MSG': response.data['MSG'] ?? 'Failed to fetch bike requests',
+          'CONTENT': [],
+        };
+      }
+    } on DioException catch (e) {
+      return _handleAuthenticatedError(e, 'Failed to fetch bike requests');
+    } catch (e) {
+      return {'MSG': 'An unexpected error occurred', 'CONTENT': []};
+    }
+  }
+
+  /// Create a bike request
+  static Future<Map<String, dynamic>> createBikeRequest({
+    required int userId,
+    required int bikeId,
+    String? requestNote,
+  }) async {
+    try {
+      final queryParams = {
+        'userId': userId.toString(),
+        'bikeId': bikeId.toString(),
+      };
+
+      final response = await _dio.post(
+        '/api/request-bike/create',
+        queryParameters: queryParams,
+        data: requestNote != null && requestNote.isNotEmpty
+            ? {'requestNote': requestNote}
+            : null,
+      );
+
+      if (response.statusCode == 200 && response.data['STS'] == '200') {
+        return response.data;
+      } else {
+        return {
+          'STS': '400',
+          'MSG': response.data['MSG'] ?? 'Failed to create bike request',
+          'CONTENT': null,
+        };
+      }
+    } on DioException catch (e) {
+      return _handleAuthenticatedError(e, 'Failed to create bike request');
+    } catch (e) {
+      return {'MSG': 'An unexpected error occurred', 'CONTENT': null};
+    }
+  }
+
+  /// Delete a bike request
+  static Future<Map<String, dynamic>> deleteBikeRequest(int requestId) async {
+    try {
+      final response = await _dio.delete('/api/request-bike/delete/$requestId');
+
+      if (response.statusCode == 200 && response.data['STS'] == '200') {
+        return response.data;
+      } else {
+        return {
+          'STS': '400',
+          'MSG': response.data['MSG'] ?? 'Failed to delete bike request',
+          'CONTENT': null,
+        };
+      }
+    } on DioException catch (e) {
+      return _handleAuthenticatedError(e, 'Failed to delete bike request');
+    } catch (e) {
+      return {'MSG': 'An unexpected error occurred', 'CONTENT': null};
+    }
+  }
+
   /// Helper method to handle errors for authenticated requests
   static Map<String, dynamic> _handleAuthenticatedError(
     DioException e,
@@ -553,12 +631,6 @@ class AuthService {
       return userData['CONTENT']['userRole'];
     }
     return null;
-  }
-
-  /// Check if user is admin
-  static Future<bool> isAdmin() async {
-    final role = await getUserRole();
-    return role == 'ROLE_ADMIN';
   }
 
   /// Check if user is regular user

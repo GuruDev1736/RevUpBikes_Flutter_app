@@ -10,6 +10,8 @@ import '../services/api_services.dart';
 import 'profile_screen.dart';
 import 'bookmark_screen.dart';
 import 'my_rides_screen.dart';
+import 'manage_bike_requests_screen.dart';
+import 'request_bike_screen.dart';
 import 'auth_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -276,6 +278,16 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  void _navigateToManageRequest() async {
+    // Navigate to Manage Bike Requests screen
+    await _checkLoginAndNavigate(const ManageBikeRequestsScreen());
+  }
+
+  void _navigateToRequestBike() async {
+    // Navigate to Request Bike screen
+    await _checkLoginAndNavigate(const RequestBikeScreen());
+  }
+
   Future<void> _launchUrl(String url) async {
     try {
       // Add https:// if the URL doesn't have a protocol
@@ -366,6 +378,52 @@ class _HomeScreenState extends State<HomeScreen> {
                           ],
                         ),
                       ),
+                      // Action buttons for active booking
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: _navigateToManageRequest,
+                                icon: const Icon(Icons.manage_accounts),
+                                label: const Text('Manage Request'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.primary,
+                                  foregroundColor: AppColors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: _navigateToRequestBike,
+                                icon: const Icon(Icons.directions_bike),
+                                label: const Text('Request Bike'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.primaryDark,
+                                  foregroundColor: AppColors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
 
                     // Banner carousel
@@ -436,6 +494,37 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       child: Row(
         children: [
+          // App Logo
+          Container(
+            width: 50,
+            height: 50,
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  spreadRadius: 0,
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Image.asset(
+              'assets/images/app_logo.png',
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) {
+                // Fallback to icon if image not found
+                return const Icon(
+                  Icons.directions_bike_rounded,
+                  color: AppColors.primary,
+                  size: 24,
+                );
+              },
+            ),
+          ),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

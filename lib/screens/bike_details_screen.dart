@@ -18,8 +18,15 @@ import 'deposit_terms_screen.dart';
 
 class BikeDetailsScreen extends StatefulWidget {
   final BikeModel bike;
+  final bool fromRequest;
+  final int? requestId;
 
-  const BikeDetailsScreen({super.key, required this.bike});
+  const BikeDetailsScreen({
+    super.key,
+    required this.bike,
+    this.fromRequest = false,
+    this.requestId,
+  });
 
   @override
   State<BikeDetailsScreen> createState() => _BikeDetailsScreenState();
@@ -253,6 +260,16 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
             behavior: SnackBarBehavior.floating,
           ),
         );
+
+        // Delete bike request if booking was made from a request
+        if (widget.fromRequest && widget.requestId != null) {
+          try {
+            await AuthService.deleteBikeRequest(widget.requestId!);
+            print('✅ Bike request deleted successfully');
+          } catch (e) {
+            print('⚠️ Failed to delete bike request: $e');
+          }
+        }
 
         // Navigate to booking confirmation after successful booking creation
         Navigator.pushReplacement(
@@ -684,7 +701,9 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
                         return const SizedBox.shrink();
                       },
                     ),
-                    if (_hasActiveBooking && !_isCheckingActiveBooking) ...[
+                    if (_hasActiveBooking &&
+                        !_isCheckingActiveBooking &&
+                        !widget.fromRequest) ...[
                       // Action Buttons - Placed above banner for better visibility
                       Row(
                         children: [
@@ -1293,7 +1312,7 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
               ),
               child: const Center(child: CircularProgressIndicator()),
             )
-          : _hasActiveBooking
+          : (_hasActiveBooking && !widget.fromRequest)
           ? null
           : Container(
               padding: const EdgeInsets.all(24),
@@ -1335,7 +1354,7 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
                   child: Text(
                     _canProceedWithBooking()
                         ? 'Book Now for ₹${_finalAmount.toInt()}'
-                        : widget.bike.isAvailable
+                        : (widget.bike.isAvailable || widget.fromRequest)
                         ? 'Complete Requirements'
                         : 'Not Available',
                     style: const TextStyle(
@@ -2504,7 +2523,7 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
         _permanentAddressController.text.trim().isNotEmpty &&
         _acceptedTermsAndConditions &&
         _acceptedDepositTerms &&
-        widget.bike.isAvailable &&
+        (widget.bike.isAvailable || widget.fromRequest) &&
         !_isUploadingAadhar &&
         !_isUploadingLicense &&
         !_isProcessingPayment;

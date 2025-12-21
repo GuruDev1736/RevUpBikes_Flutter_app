@@ -53,13 +53,14 @@ class AuthHeader extends StatelessWidget {
         children: [
           // Enhanced Logo Container
           Container(
-            width: 120,
-            height: 120,
+            width: 130,
+            height: 130,
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
+              color: Colors.white,
               borderRadius: BorderRadius.circular(30),
               border: Border.all(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withOpacity(0.3),
                 width: 2,
               ),
               boxShadow: [
@@ -71,7 +72,14 @@ class AuthHeader extends StatelessWidget {
                 ),
               ],
             ),
-            child: Icon(logoIcon, color: Colors.white, size: logoSize),
+            child: Image.asset(
+              'assets/images/app_logo.png',
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) {
+                // Fallback to icon if image not found
+                return Icon(logoIcon, color: AppColors.primary, size: logoSize);
+              },
+            ),
           ),
           const SizedBox(height: 25),
 
