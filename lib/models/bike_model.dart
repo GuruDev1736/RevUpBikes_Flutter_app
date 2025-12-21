@@ -21,6 +21,7 @@ class BikeModel {
   final String registrationNumber;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final int quantity;
 
   // Legacy fields for backward compatibility
   String get name => bikeName;
@@ -57,6 +58,7 @@ class BikeModel {
     required this.registrationNumber,
     required this.createdAt,
     required this.updatedAt,
+    this.quantity = 0,
   });
 
   factory BikeModel.fromJson(Map<String, dynamic> json) {
@@ -80,6 +82,7 @@ class BikeModel {
       registrationNumber: json['registrationNumber'] ?? '',
       createdAt: DateTime.fromMillisecondsSinceEpoch(json['createdAt'] ?? 0),
       updatedAt: DateTime.fromMillisecondsSinceEpoch(json['updatedAt'] ?? 0),
+      quantity: json['quantity'] ?? 0,
     );
   }
 
@@ -104,6 +107,7 @@ class BikeModel {
       'registrationNumber': registrationNumber,
       'createdAt': createdAt.millisecondsSinceEpoch,
       'updatedAt': updatedAt.millisecondsSinceEpoch,
+      'quantity': quantity,
     };
   }
 

@@ -31,6 +31,8 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoadingBikes = false;
   bool _isLoadingBanners = false;
   bool _isLoadingPlaces = false;
+  bool _hasActiveBooking = false;
+  bool _isFirstLoad = true;
 
   @override
   void initState() {
@@ -38,12 +40,34 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadBanners();
     _loadPlaces();
     _loadBikes();
+    _checkActiveBooking();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Refresh data when returning to this screen (but not on first load)
+    if (!_isFirstLoad) {
+      _refreshData();
+    } else {
+      _isFirstLoad = false;
+    }
   }
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _refreshData() async {
+    // Reload all data
+    await Future.wait([
+      _loadBanners(),
+      _loadPlaces(),
+      _loadBikes(),
+      _checkActiveBooking(),
+    ]);
   }
 
   Future<void> _loadBanners() async {
@@ -109,6 +133,32 @@ class _HomeScreenState extends State<HomeScreen> {
         _isLoadingPlaces = false;
       });
       print('Error loading places: $e');
+    }
+  }
+
+  Future<void> _checkActiveBooking() async {
+    try {
+      final isLoggedIn = await AuthService.isLoggedIn();
+      if (!isLoggedIn) return;
+
+      final userData = await AuthService.getUserData();
+      if (userData != null && userData['CONTENT'] != null) {
+        var userId =
+            userData['CONTENT']['id']?.toString() ??
+            userData['CONTENT']['userId']?.toString() ??
+            userData['CONTENT']['ID']?.toString();
+
+        if (userId != null && mounted) {
+          final response = await AuthService.checkActiveBooking(userId);
+          if (mounted) {
+            setState(() {
+              _hasActiveBooking = response['CONTENT'] == true;
+            });
+          }
+        }
+      }
+    } catch (e) {
+      // Silently fail, user can still browse
     }
   }
 
@@ -259,28 +309,80 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(
-              child: Column(
-                children: [
-                  // Top app bar with greeting
-                  _buildTopBar(),
+        child: RefreshIndicator(
+          onRefresh: _refreshData,
+          color: AppColors.primary,
+          child: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: Column(
+                  children: [
+                    // Top app bar with greeting
+                    _buildTopBar(),
 
-                  // Banner carousel
-                  _buildBannerSection(),
+                    // Active Booking Warning Banner
+                    if (_hasActiveBooking) ...[
+                      Container(
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.error.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppColors.error.withOpacity(0.3),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.block, color: AppColors.error, size: 24),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Active Booking in Progress',
+                                    style: TextStyle(
+                                      color: AppColors.error,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'You have an active booking. Complete or cancel it before making a new booking.',
+                                    style: TextStyle(
+                                      color: AppColors.error.withOpacity(0.8),
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
 
-                  // Search bar and place filter
-                  _buildSearchAndFilter(),
+                    // Banner carousel
+                    _buildBannerSection(),
 
-                  // Bike Categories
-                  _buildCategories(),
-                ],
+                    // Search bar and place filter
+                    _buildSearchAndFilter(),
+
+                    // Bike Categories
+                    _buildCategories(),
+                  ],
+                ),
               ),
-            ),
-            // Bikes list as sliver
-            _buildBikesSliver(),
-          ],
+              // Bikes list as sliver
+              _buildBikesSliver(),
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: _buildBottomNavigationBar(),
@@ -767,7 +869,10 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
       sliver: SliverList(
         delegate: SliverChildBuilderDelegate((context, index) {
-          return BikeCard(bike: _filteredBikes[index]);
+          return BikeCard(
+            bike: _filteredBikes[index],
+            hasActiveBooking: _hasActiveBooking,
+          );
         }, childCount: _filteredBikes.length),
       ),
     );

@@ -312,6 +312,8 @@ class AuthService {
     String alternatePhone,
     String currentAddress,
     String permanentAddress,
+    String rentalPeriodType,
+    String couponCode,
   ) async {
     try {
       final response = await _dio.post(
@@ -323,9 +325,12 @@ class AuthService {
           "totalAmount": totalAmount,
           "aadharcardUrl": aadharcardUrl,
           "drivingLicenseUrl": drivingLicenseUrl,
-          "alternatePhone": alternatePhone,
-          "currentAddress": currentAddress,
+          "presentAddress": currentAddress,
           "permanentAddress": permanentAddress,
+          "alternateContactNumber": alternatePhone,
+          "rentalPeriodType": rentalPeriodType,
+          "quantity": 1,
+          "couponCode": couponCode,
         },
       );
 
@@ -338,6 +343,79 @@ class AuthService {
       return _handleAuthenticatedError(e, 'Failed to create booking');
     } catch (e) {
       return {'MSG': 'An unexpected error occurred'};
+    }
+  }
+
+  /// Validate coupon code
+  static Future<Map<String, dynamic>> validateCoupon(String couponCode) async {
+    try {
+      final response = await _dio.get('/api/coupons/$couponCode');
+
+      if (response.statusCode == 200 && response.data['STS'] == '200') {
+        return response.data;
+      } else {
+        return {'MSG': response.data['MSG'] ?? 'Invalid coupon code'};
+      }
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        return {'MSG': 'Coupon not found'};
+      }
+      return _handleAuthenticatedError(e, 'Failed to validate coupon');
+    } catch (e) {
+      return {'MSG': 'An unexpected error occurred'};
+    }
+  }
+
+  /// Check if user has active or confirmed booking
+  static Future<Map<String, dynamic>> checkActiveBooking(String userId) async {
+    try {
+      final response = await _dio.get('/api/bookings/check/$userId');
+
+      if (response.statusCode == 200 && response.data['STS'] == '200') {
+        return response.data;
+      } else {
+        return {
+          'STS': '400',
+          'MSG': response.data['MSG'] ?? 'Failed to check booking status',
+          'CONTENT': false,
+        };
+      }
+    } on DioException catch (e) {
+      return _handleAuthenticatedError(e, 'Failed to check booking status');
+    } catch (e) {
+      return {'MSG': 'An unexpected error occurred', 'CONTENT': false};
+    }
+  }
+
+  /// Send contact/support form
+  static Future<Map<String, dynamic>> sendContactForm({
+    required String subject,
+    required String name,
+    required String email,
+    required String phone,
+    required String message,
+  }) async {
+    try {
+      final formattedMessage =
+          'Name: $name\nEmail: $email\nPhone: $phone\n\nMessage:\n$message';
+
+      final response = await _dio.post(
+        '/api/contact/send',
+        data: {'subject': subject, 'message': formattedMessage},
+      );
+
+      if (response.statusCode == 200) {
+        return {'success': true, 'message': 'Message sent successfully'};
+      } else {
+        return {
+          'success': false,
+          'message': response.data['MSG'] ?? 'Failed to send message',
+        };
+      }
+    } on DioException catch (e) {
+      return _handleAuthenticatedError(e, 'Failed to send message');
+    } catch (e) {
+      return {'success': false, 'message': 'An unexpected error occurred'};
     }
   }
 
@@ -536,13 +614,7 @@ class AuthService {
   /// Check if the stored token is valid (basic check)
   static Future<bool> isTokenValid() async {
     final token = await getToken();
-    if (token == null || token.isEmpty) {
-      return false;
-    }
-
-    // You can add more sophisticated token validation here
-    // For example, checking expiration date if it's a JWT token
-    return true;
+    return token != null && token.isNotEmpty;
   }
 
   /// Refresh token headers manually (useful for testing)

@@ -63,8 +63,19 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
   bool _acceptedTermsAndConditions = false;
   bool _acceptedDepositTerms = false;
 
+  // Coupon system
+  final TextEditingController _couponController = TextEditingController();
+  bool _isCouponApplied = false;
+  double _couponDiscount = 0.0; // Discount percentage
+  String _appliedCouponCode = '';
+  bool _isValidatingCoupon = false;
+
   // Bookmark state
   bool _isBookmarked = false;
+
+  // Active booking check
+  bool _hasActiveBooking = false;
+  bool _isCheckingActiveBooking = true;
 
   // Calculate number of days between selected dates
   int get _calculatedDays {
@@ -85,11 +96,29 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
     }
   }
 
+  // Calculate final amount after applying coupon discount
+  double get _finalAmount {
+    if (_isCouponApplied && _couponDiscount > 0) {
+      final discount = (_totalCost * _couponDiscount) / 100;
+      return _totalCost - discount;
+    }
+    return _totalCost;
+  }
+
+  // Calculate discount amount
+  double get _discountAmount {
+    if (_isCouponApplied && _couponDiscount > 0) {
+      return (_totalCost * _couponDiscount) / 100;
+    }
+    return 0.0;
+  }
+
   @override
   void initState() {
     super.initState();
     _initializeRazorpay();
     _checkBookmarkStatus();
+    _checkActiveBooking();
   }
 
   Future<void> _checkBookmarkStatus() async {
@@ -101,12 +130,69 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
     });
   }
 
+  Future<void> _checkActiveBooking() async {
+    try {
+      final userData = await AuthService.getUserData();
+      print('🔍 DEBUG: userData = $userData');
+
+      if (userData != null && userData['CONTENT'] != null) {
+        var userId =
+            userData['CONTENT']['id']?.toString() ??
+            userData['CONTENT']['userId']?.toString() ??
+            userData['CONTENT']['ID']?.toString();
+
+        print('🔍 DEBUG: Extracted userId = $userId');
+
+        if (userId != null) {
+          final response = await AuthService.checkActiveBooking(userId);
+          print('🔍 DEBUG: API Response = $response');
+
+          if (mounted) {
+            final hasActive = response['CONTENT'] == true;
+            print('🔍 DEBUG: hasActive = $hasActive');
+            print('🔍 DEBUG: Setting _hasActiveBooking = $hasActive');
+
+            setState(() {
+              _hasActiveBooking = hasActive;
+              _isCheckingActiveBooking = false;
+            });
+
+            print(
+              '🔍 DEBUG: After setState - _hasActiveBooking = $_hasActiveBooking, _isCheckingActiveBooking = $_isCheckingActiveBooking',
+            );
+
+            // NOTE: Dialog removed - users will see the warning banner with action buttons instead
+          }
+        } else {
+          if (mounted) {
+            setState(() {
+              _isCheckingActiveBooking = false;
+            });
+          }
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _isCheckingActiveBooking = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isCheckingActiveBooking = false;
+        });
+      }
+    }
+  }
+
   @override
   void dispose() {
     _razorpay.clear();
     _alternatePhoneController.dispose();
     _currentAddressController.dispose();
     _permanentAddressController.dispose();
+    _couponController.dispose();
     super.dispose();
   }
 
@@ -137,19 +223,21 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
         throw Exception('User ID not found');
       }
 
-      // Create booking using the API
+      // Create booking using the API with final amount after discount
       final bookingResult = await AuthService.createBooking(
         widget.bike.id.toString(),
         userId,
         _formatDateTimeForAPI(_fromDateTime!),
         _formatDateTimeForAPI(_toDateTime!),
         response.paymentId ?? '',
-        _totalCost,
+        _finalAmount, // Use final amount after discount
         _aadharCardUrl ?? '',
         _drivingLicenseUrl ?? '',
         _alternatePhoneController.text.trim(),
         _currentAddressController.text.trim(),
         _permanentAddressController.text.trim(),
+        _rentalPeriod.toUpperCase(), // Convert Day/Week/Month to DAY/WEEK/MONTH
+        _appliedCouponCode, // Send applied coupon code or empty string
       );
 
       setState(() {
@@ -173,7 +261,8 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
             builder: (context) => BookingConfirmationScreen(
               bike: widget.bike,
               duration: _calculatedDays,
-              totalCost: _totalCost,
+              totalCost:
+                  _finalAmount, // Use final amount after discount (same as Razorpay)
               paymentId: response.paymentId,
               orderId: response.orderId,
               bookingData: bookingResult['CONTENT'],
@@ -585,6 +674,125 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
 
                     const SizedBox(height: 24),
 
+                    // Active Booking Warning - Show at top if user has active booking
+                    // DEBUG: Print the state values
+                    Builder(
+                      builder: (context) {
+                        print(
+                          '🎨 DEBUG: Building banner - _hasActiveBooking = $_hasActiveBooking, _isCheckingActiveBooking = $_isCheckingActiveBooking',
+                        );
+                        return const SizedBox.shrink();
+                      },
+                    ),
+                    if (_hasActiveBooking && !_isCheckingActiveBooking) ...[
+                      // Action Buttons - Placed above banner for better visibility
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () {
+                                // TODO: Implement request bike functionality
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Request bike feature coming soon!',
+                                    ),
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.directions_bike, size: 18),
+                              label: const Text(
+                                'Request Bike',
+                                style: TextStyle(fontSize: 14),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.error,
+                                side: BorderSide(
+                                  color: AppColors.error,
+                                  width: 1.5,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                  horizontal: 8,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                Navigator.pushNamed(context, '/my-rides');
+                              },
+                              icon: const Icon(Icons.list_alt, size: 18),
+                              label: const Text(
+                                'Manage Rides',
+                                style: TextStyle(fontSize: 14),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.error,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                  horizontal: 8,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                elevation: 0,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      // Warning Banner
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.error.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppColors.error.withOpacity(0.3),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.block, color: AppColors.error, size: 24),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Booking Not Available',
+                                    style: TextStyle(
+                                      color: AppColors.error,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'You already have an active booking. Please complete or cancel your existing booking before making a new one.',
+                                    style: TextStyle(
+                                      color: AppColors.error.withOpacity(0.8),
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+
                     // Price Section
                     Container(
                       padding: const EdgeInsets.all(20),
@@ -666,7 +874,7 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               const Text(
-                                'Total Cost:',
+                                'Subtotal:',
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600,
@@ -675,14 +883,185 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
                               ),
                               Text(
                                 '₹${_totalCost.toInt()}',
-                                style: const TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.primary,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.text,
+                                  decoration: _isCouponApplied
+                                      ? TextDecoration.lineThrough
+                                      : null,
                                 ),
                               ),
                             ],
                           ),
+                          if (_isCouponApplied) ...[
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Discount ($_couponDiscount%):',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: AppColors.success,
+                                  ),
+                                ),
+                                Text(
+                                  '- ₹${_discountAmount.toInt()}',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.success,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const Divider(height: 20),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Total Amount:',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.text,
+                                  ),
+                                ),
+                                Text(
+                                  '₹${_finalAmount.toInt()}',
+                                  style: const TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Coupon Section
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Have a Coupon?',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          if (!_isCouponApplied) ...[
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: _couponController,
+                                    decoration: InputDecoration(
+                                      hintText: 'Enter coupon code',
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 12,
+                                          ),
+                                    ),
+                                    textCapitalization:
+                                        TextCapitalization.characters,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                ElevatedButton(
+                                  onPressed: _isValidatingCoupon
+                                      ? null
+                                      : () => _applyCoupon(),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.orange,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 20,
+                                      vertical: 15,
+                                    ),
+                                  ),
+                                  child: _isValidatingCoupon
+                                      ? const SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                            color: Colors.white,
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : const Text(
+                                          'Apply',
+                                          style: TextStyle(color: Colors.white),
+                                        ),
+                                ),
+                              ],
+                            ),
+                          ] else ...[
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.green[50],
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.green),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.check_circle,
+                                    color: Colors.green,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Coupon "$_appliedCouponCode" applied',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.green,
+                                          ),
+                                        ),
+                                        Text(
+                                          'You saved ₹${_discountAmount.toInt()}',
+                                          style: TextStyle(
+                                            color: Colors.green[700],
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  IconButton(
+                                    onPressed: () => _removeCoupon(),
+                                    icon: const Icon(
+                                      Icons.close,
+                                      color: Colors.red,
+                                    ),
+                                    tooltip: 'Remove coupon',
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -755,6 +1134,141 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
                     // Document Upload Section
                     _buildDocumentUpload(),
 
+                    const SizedBox(height: 24),
+
+                    // Terms and Conditions Section
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: AppColors.primary.withOpacity(0.2),
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          // Terms and Conditions Checkbox
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Checkbox(
+                                value: _acceptedTermsAndConditions,
+                                activeColor: AppColors.primary,
+                                onChanged: (value) {
+                                  setState(() {
+                                    _acceptedTermsAndConditions =
+                                        value ?? false;
+                                  });
+                                },
+                              ),
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.only(top: 12),
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              const TermsAndConditionsScreen(),
+                                        ),
+                                      );
+                                    },
+                                    child: RichText(
+                                      text: TextSpan(
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          color: AppColors.text,
+                                        ),
+                                        children: [
+                                          const TextSpan(
+                                            text: 'I agree to the ',
+                                          ),
+                                          TextSpan(
+                                            text: 'Terms and Conditions',
+                                            style: const TextStyle(
+                                              color: AppColors.primary,
+                                              fontWeight: FontWeight.w600,
+                                              decoration:
+                                                  TextDecoration.underline,
+                                            ),
+                                          ),
+                                          const TextSpan(
+                                            text:
+                                                ' of RevUp Bikes rental service',
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          // Deposit Terms Checkbox
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Checkbox(
+                                value: _acceptedDepositTerms,
+                                activeColor: AppColors.primary,
+                                onChanged: (value) {
+                                  setState(() {
+                                    _acceptedDepositTerms = value ?? false;
+                                  });
+                                },
+                              ),
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.only(top: 12),
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              const DepositTermsScreen(),
+                                        ),
+                                      );
+                                    },
+                                    child: RichText(
+                                      text: TextSpan(
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          color: AppColors.text,
+                                        ),
+                                        children: [
+                                          const TextSpan(
+                                            text:
+                                                'I understand and agree to the ',
+                                          ),
+                                          TextSpan(
+                                            text: 'Deposit Terms',
+                                            style: const TextStyle(
+                                              color: AppColors.primary,
+                                              fontWeight: FontWeight.w600,
+                                              decoration:
+                                                  TextDecoration.underline,
+                                            ),
+                                          ),
+                                          const TextSpan(
+                                            text:
+                                                ' including security deposit and refund policy',
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+
                     const SizedBox(height: 100), // Space for bottom button
                   ],
                 ),
@@ -763,58 +1277,76 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
           ),
         ],
       ),
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.grey.withOpacity(0.2),
-              spreadRadius: 0,
-              blurRadius: 10,
-              offset: const Offset(0, -5),
-            ),
-          ],
-        ),
-        child: Container(
-          height: 55,
-          decoration: BoxDecoration(
-            gradient: AppColors.primaryGradient,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primary.withOpacity(0.3),
-                spreadRadius: 0,
-                blurRadius: 15,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: ElevatedButton(
-            onPressed: _canProceedWithBooking() ? _handleBooking : null,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.transparent,
-              shadowColor: Colors.transparent,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              disabledBackgroundColor: AppColors.grey,
-            ),
-            child: Text(
-              _canProceedWithBooking()
-                  ? 'Book Now for ₹${_totalCost.toInt()}'
-                  : widget.bike.isAvailable
-                  ? 'Complete Requirements'
-                  : 'Not Available',
-              style: const TextStyle(
+      bottomNavigationBar: _isCheckingActiveBooking
+          ? Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
                 color: AppColors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.grey.withOpacity(0.2),
+                    spreadRadius: 0,
+                    blurRadius: 10,
+                    offset: const Offset(0, -5),
+                  ),
+                ],
+              ),
+              child: const Center(child: CircularProgressIndicator()),
+            )
+          : _hasActiveBooking
+          ? null
+          : Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.grey.withOpacity(0.2),
+                    spreadRadius: 0,
+                    blurRadius: 10,
+                    offset: const Offset(0, -5),
+                  ),
+                ],
+              ),
+              child: Container(
+                height: 55,
+                decoration: BoxDecoration(
+                  gradient: AppColors.primaryGradient,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primary.withOpacity(0.3),
+                      spreadRadius: 0,
+                      blurRadius: 15,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: ElevatedButton(
+                  onPressed: _canProceedWithBooking() ? _handleBooking : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    disabledBackgroundColor: AppColors.grey,
+                  ),
+                  child: Text(
+                    _canProceedWithBooking()
+                        ? 'Book Now for ₹${_finalAmount.toInt()}'
+                        : widget.bike.isAvailable
+                        ? 'Complete Requirements'
+                        : 'Not Available',
+                    style: const TextStyle(
+                      color: AppColors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
               ),
             ),
-          ),
-        ),
-      ),
     );
   }
 
@@ -900,7 +1432,8 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
       final userContent = userData?['CONTENT'];
 
       // Calculate amount in paise (multiply by 100 for Razorpay)
-      final amountInPaise = (_totalCost * 100).toInt();
+      // Use final amount after discount instead of total cost
+      final amountInPaise = (_finalAmount * 100).toInt();
 
       var options = {
         'key': 'rzp_test_RPNxiQLJkGE7GO', // You'll replace this with actual key
@@ -929,6 +1462,8 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
               : '',
           'aadhar_url': _aadharCardUrl ?? '',
           'license_url': _drivingLicenseUrl ?? '',
+          'coupon_code': _appliedCouponCode,
+          'discount_percentage': _couponDiscount.toString(),
         },
       };
 
@@ -1279,130 +1814,6 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
               borderSide: BorderSide(color: AppColors.grey.withOpacity(0.2)),
             ),
             alignLabelWithHint: true,
-          ),
-        ),
-        const SizedBox(height: 24),
-
-        // Terms and Conditions Section
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.primary.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.primary.withOpacity(0.2)),
-          ),
-          child: Column(
-            children: [
-              // Terms and Conditions Checkbox
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Checkbox(
-                    value: _acceptedTermsAndConditions,
-                    activeColor: AppColors.primary,
-                    onChanged: (value) {
-                      setState(() {
-                        _acceptedTermsAndConditions = value ?? false;
-                      });
-                    },
-                  ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  const TermsAndConditionsScreen(),
-                            ),
-                          );
-                        },
-                        child: RichText(
-                          text: TextSpan(
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: AppColors.text,
-                            ),
-                            children: [
-                              const TextSpan(text: 'I agree to the '),
-                              TextSpan(
-                                text: 'Terms and Conditions',
-                                style: const TextStyle(
-                                  color: AppColors.primary,
-                                  fontWeight: FontWeight.w600,
-                                  decoration: TextDecoration.underline,
-                                ),
-                              ),
-                              const TextSpan(
-                                text: ' of RevUp Bikes rental service',
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              // Deposit Terms Checkbox
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Checkbox(
-                    value: _acceptedDepositTerms,
-                    activeColor: AppColors.primary,
-                    onChanged: (value) {
-                      setState(() {
-                        _acceptedDepositTerms = value ?? false;
-                      });
-                    },
-                  ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const DepositTermsScreen(),
-                            ),
-                          );
-                        },
-                        child: RichText(
-                          text: TextSpan(
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: AppColors.text,
-                            ),
-                            children: [
-                              const TextSpan(
-                                text: 'I understand and agree to the ',
-                              ),
-                              TextSpan(
-                                text: 'Deposit Terms',
-                                style: const TextStyle(
-                                  color: AppColors.primary,
-                                  fontWeight: FontWeight.w600,
-                                  decoration: TextDecoration.underline,
-                                ),
-                              ),
-                              const TextSpan(
-                                text:
-                                    ' including security deposit and refund policy',
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
           ),
         ),
       ],
@@ -1940,7 +2351,7 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
         }
       }
     } catch (e) {
-      print('Image picker error: $e'); // Debug print
+      print('Image picker error: $e');
 
       String errorMessage = 'Failed to pick image';
       if (e.toString().contains('MissingPluginException')) {
@@ -1985,6 +2396,102 @@ class _BikeDetailsScreenState extends State<BikeDetailsScreen> {
     String minute = dateTime.minute.toString().padLeft(2, '0');
 
     return '$day $month, $hour:$minute';
+  }
+
+  Future<void> _applyCoupon() async {
+    final couponCode = _couponController.text.trim();
+
+    if (couponCode.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a coupon code'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isValidatingCoupon = true;
+    });
+
+    try {
+      final response = await AuthService.validateCoupon(couponCode);
+
+      if (response['STS'] == '200') {
+        final content = response['CONTENT'];
+
+        // Check if coupon is active
+        if (content['isActive'] == true) {
+          final discount = content['couponDiscount'];
+
+          setState(() {
+            _isCouponApplied = true;
+            _couponDiscount = discount.toDouble();
+            _appliedCouponCode = couponCode;
+            _isValidatingCoupon = false;
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Coupon applied! You saved ₹${_discountAmount.toInt()}',
+              ),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          setState(() {
+            _isValidatingCoupon = false;
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('This coupon is not active'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } else {
+        setState(() {
+          _isValidatingCoupon = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(response['MSG'] ?? 'Invalid coupon code'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isValidatingCoupon = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to validate coupon. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _removeCoupon() {
+    setState(() {
+      _isCouponApplied = false;
+      _couponDiscount = 0.0;
+      _appliedCouponCode = '';
+      _couponController.clear();
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Coupon removed'),
+        backgroundColor: Colors.orange,
+      ),
+    );
   }
 
   bool _canProceedWithBooking() {

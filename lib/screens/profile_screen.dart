@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
 import '../services/api_services.dart';
 import 'auth_screen.dart';
+import 'my_rides_screen.dart';
+import 'bookmark_screen.dart';
+import 'help_support_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -10,559 +13,223 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen>
-    with TickerProviderStateMixin {
-  late AnimationController _fadeController;
-  late AnimationController _slideController;
-  late AnimationController _scaleController;
-
-  late Animation<double> _fadeAnimation;
-  late Animation<Offset> _slideAnimation;
-  late Animation<double> _scaleAnimation;
-
-  // User data
+class _ProfileScreenState extends State<ProfileScreen> {
   String _userName = 'User';
   String _userEmail = 'user@revup.com';
-  String _userRole = 'Member';
+  String? _profileImageUrl;
 
   @override
   void initState() {
     super.initState();
-
-    // Initialize animation controllers
-    _fadeController = AnimationController(
-      duration: const Duration(milliseconds: 800),
-      vsync: this,
-    );
-
-    _slideController = AnimationController(
-      duration: const Duration(milliseconds: 1000),
-      vsync: this,
-    );
-
-    _scaleController = AnimationController(
-      duration: const Duration(milliseconds: 600),
-      vsync: this,
-    );
-
-    // Initialize animations
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _fadeController, curve: Curves.easeInOut),
-    );
-
-    _slideAnimation =
-        Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero).animate(
-          CurvedAnimation(parent: _slideController, curve: Curves.easeOutBack),
-        );
-
-    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
-      CurvedAnimation(parent: _scaleController, curve: Curves.elasticOut),
-    );
-
-    // Load user data and start animations
     _loadUserData();
-    _startAnimations();
-  }
-
-  void _startAnimations() async {
-    await Future.delayed(const Duration(milliseconds: 100));
-    _fadeController.forward();
-
-    await Future.delayed(const Duration(milliseconds: 200));
-    _slideController.forward();
-
-    await Future.delayed(const Duration(milliseconds: 300));
-    _scaleController.forward();
   }
 
   Future<void> _loadUserData() async {
     try {
       final userData = await AuthService.getUserData();
       if (userData != null && userData['CONTENT'] != null) {
-        // Determine user role display
-        String role = userData['CONTENT']['role'] ?? 'ROLE_USER';
-        String roleDisplay = 'Member';
-        if (role == 'ROLE_ADMIN') {
-          roleDisplay = 'Administrator';
-        } else if (role == 'ROLE_USER') {
-          roleDisplay = 'Premium Member';
-        }
-
         setState(() {
           _userName =
-              '${userData['CONTENT']['fullName'] ?? ''} ${userData['CONTENT']['lastName'] ?? ''}';
+              '${userData['CONTENT']['fullName'] ?? ''} ${userData['CONTENT']['lastName'] ?? ''}'
+                  .trim();
           _userEmail = userData['CONTENT']['userName'] ?? 'user@revup.com';
-          _userRole = roleDisplay;
+          _profileImageUrl = userData['CONTENT']['userProfilePic'];
         });
       }
     } catch (e) {
-      // If error loading user data, keep default values
       print('Error loading user data: $e');
     }
   }
 
   @override
-  void dispose() {
-    _fadeController.dispose();
-    _slideController.dispose();
-    _scaleController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              // Header with profile picture
-              _buildAnimatedHeader(),
-
-              // Profile stats
-              _buildAnimatedStats(),
-
-              // Profile options
-              _buildAnimatedOptions(),
-
-              // Logout button
-              _buildAnimatedLogoutButton(),
-            ],
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          onPressed: () => Navigator.pop(context),
+          icon: const Icon(Icons.arrow_back_ios, color: AppColors.text),
+        ),
+        title: const Text(
+          'Profile',
+          style: TextStyle(
+            color: AppColors.text,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
           ),
         ),
+        centerTitle: true,
       ),
-    );
-  }
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            const SizedBox(height: 20),
 
-  Widget _buildAnimatedHeader() {
-    return AnimatedBuilder(
-      animation: _fadeAnimation,
-      builder: (context, child) {
-        return FadeTransition(
-          opacity: _fadeAnimation,
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: const BoxDecoration(
-              gradient: AppColors.primaryGradient,
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(30),
-                bottomRight: Radius.circular(30),
+            // Profile Picture
+            Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.primary.withOpacity(0.1),
+              ),
+              child: ClipOval(
+                child: _profileImageUrl != null && _profileImageUrl!.isNotEmpty
+                    ? Image.network(
+                        _profileImageUrl!,
+                        width: 100,
+                        height: 100,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return const Icon(
+                            Icons.person,
+                            size: 50,
+                            color: AppColors.primary,
+                          );
+                        },
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Center(
+                            child: CircularProgressIndicator(
+                              value: loadingProgress.expectedTotalBytes != null
+                                  ? loadingProgress.cumulativeBytesLoaded /
+                                        loadingProgress.expectedTotalBytes!
+                                  : null,
+                              strokeWidth: 2,
+                              valueColor: const AlwaysStoppedAnimation<Color>(
+                                AppColors.primary,
+                              ),
+                            ),
+                          );
+                        },
+                      )
+                    : const Icon(
+                        Icons.person,
+                        size: 50,
+                        color: AppColors.primary,
+                      ),
               ),
             ),
-            child: Column(
-              children: [
-                // Back button and title
-                Row(
-                  children: [
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(
-                        Icons.arrow_back_ios,
-                        color: Colors.white,
-                        size: 24,
-                      ),
-                    ),
-                    const Expanded(
-                      child: Text(
-                        'Profile',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () {
-                        // Edit profile
-                      },
-                      icon: const Icon(
-                        Icons.edit,
-                        color: Colors.white,
-                        size: 24,
-                      ),
-                    ),
-                  ],
-                ),
 
-                const SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-                // Profile picture with scale animation
-                ScaleTransition(
-                  scale: _scaleAnimation,
-                  child: Hero(
-                    tag: 'profile_image',
-                    child: Container(
-                      width: 120,
-                      height: 120,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 4),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.2),
-                            spreadRadius: 2,
-                            blurRadius: 10,
-                            offset: const Offset(0, 5),
-                          ),
-                        ],
-                      ),
-                      child: ClipOval(
-                        child: Container(
-                          color: Colors.white,
-                          child: const Icon(
-                            Icons.person,
-                            size: 60,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // Name and email with slide animation
-                SlideTransition(
-                  position: _slideAnimation,
-                  child: Column(
-                    children: [
-                      Text(
-                        _userName,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _userEmail,
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.9),
-                          fontSize: 16,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          _userRole,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+            // Name
+            Text(
+              _userName,
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w600,
+                color: AppColors.text,
+              ),
             ),
-          ),
-        );
-      },
-    );
-  }
 
-  Widget _buildAnimatedStats() {
-    return AnimatedBuilder(
-      animation: _slideController,
-      builder: (context, child) {
-        return SlideTransition(
-          position: _slideAnimation,
-          child: Container(
-            margin: const EdgeInsets.all(20),
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.grey.withOpacity(0.1),
-                  spreadRadius: 0,
-                  blurRadius: 10,
-                  offset: const Offset(0, 5),
-                ),
-              ],
+            const SizedBox(height: 6),
+
+            // Email
+            Text(
+              _userEmail,
+              style: const TextStyle(
+                fontSize: 15,
+                color: AppColors.textSecondary,
+              ),
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildStatItem(
-                    icon: Icons.directions_bike,
-                    title: 'Total Rides',
-                    value: '47',
-                    color: AppColors.primary,
+
+            const SizedBox(height: 50),
+
+            // Menu Options
+            _buildMenuItem(
+              Icons.history,
+              'Ride History',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const MyRidesScreen(),
                   ),
-                ),
-                Container(width: 1, height: 50, color: AppColors.lightGrey),
-                Expanded(
-                  child: _buildStatItem(
-                    icon: Icons.access_time,
-                    title: 'Hours Ridden',
-                    value: '142',
-                    color: Colors.orange,
-                  ),
-                ),
-                Container(width: 1, height: 50, color: AppColors.lightGrey),
-                Expanded(
-                  child: _buildStatItem(
-                    icon: Icons.star,
-                    title: 'Rating',
-                    value: '4.8',
-                    color: Colors.amber,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildStatItem({
-    required IconData icon,
-    required String title,
-    required String value,
-    required Color color,
-  }) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, color: color, size: 24),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: AppColors.text,
-          ),
-        ),
-        Text(
-          title,
-          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-          textAlign: TextAlign.center,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildAnimatedOptions() {
-    final options = [
-      {
-        'icon': Icons.history,
-        'title': 'Ride History',
-        'subtitle': 'View your past rides',
-        'color': Colors.blue,
-      },
-      {
-        'icon': Icons.favorite,
-        'title': 'Favorite Bikes',
-        'subtitle': 'Your saved bikes',
-        'color': Colors.red,
-      },
-      {
-        'icon': Icons.payment,
-        'title': 'Payment Methods',
-        'subtitle': 'Manage your payments',
-        'color': Colors.green,
-      },
-      {
-        'icon': Icons.notifications,
-        'title': 'Notifications',
-        'subtitle': 'Manage notifications',
-        'color': Colors.orange,
-      },
-      {
-        'icon': Icons.help,
-        'title': 'Help & Support',
-        'subtitle': 'Get help when you need it',
-        'color': Colors.purple,
-      },
-      {
-        'icon': Icons.settings,
-        'title': 'Settings',
-        'subtitle': 'App preferences',
-        'color': Colors.grey,
-      },
-    ];
-
-    return AnimatedBuilder(
-      animation: _fadeController,
-      builder: (context, child) {
-        return FadeTransition(
-          opacity: _fadeAnimation,
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 20),
-            child: Column(
-              children: options.asMap().entries.map((entry) {
-                int index = entry.key;
-                Map<String, dynamic> option = entry.value;
-
-                return TweenAnimationBuilder<double>(
-                  duration: Duration(milliseconds: 600 + (index * 100)),
-                  tween: Tween(begin: 0.0, end: 1.0),
-                  curve: Curves
-                      .easeOutCubic, // Changed from easeOutBack to avoid overshoot
-                  builder: (context, value, child) {
-                    return Transform.translate(
-                      offset: Offset(0, 30 * (1 - value)),
-                      child: Opacity(
-                        opacity: value.clamp(
-                          0.0,
-                          1.0,
-                        ), // Clamp opacity to valid range
-                        child: _buildOptionCard(
-                          icon: option['icon'],
-                          title: option['title'],
-                          subtitle: option['subtitle'],
-                          color: option['color'],
-                        ),
-                      ),
-                    );
-                  },
                 );
-              }).toList(),
+              },
             ),
-          ),
-        );
-      },
-    );
-  }
+            _buildMenuItem(
+              Icons.favorite_border,
+              'Favorites',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const BookmarkScreen(),
+                  ),
+                );
+              },
+            ),
+            _buildMenuItem(
+              Icons.help_outline,
+              'Help & Support',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const HelpSupportScreen(),
+                  ),
+                );
+              },
+            ),
+            _buildMenuItem(Icons.settings_outlined, 'Settings'),
 
-  Widget _buildOptionCard({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required Color color,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.grey.withOpacity(0.1),
-            spreadRadius: 0,
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () {
-            // Handle option tap with ripple effect
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
+            const SizedBox(height: 40),
+
+            // Logout Button
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: OutlinedButton(
+                onPressed: _showLogoutDialog,
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.red, width: 1),
+                  shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(icon, color: color, size: 24),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.text,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
+                child: const Text(
+                  'Logout',
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
-                const Icon(
-                  Icons.arrow_forward_ios,
-                  size: 16,
-                  color: AppColors.textSecondary,
-                ),
-              ],
+              ),
             ),
-          ),
+            const SizedBox(height: 20),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildAnimatedLogoutButton() {
-    return AnimatedBuilder(
-      animation: _scaleController,
-      builder: (context, child) {
-        return ScaleTransition(
-          scale: _scaleAnimation,
-          child: Container(
-            margin: const EdgeInsets.all(20),
-            width: double.infinity,
-            height: 55,
-            child: ElevatedButton(
-              onPressed: () {
-                _showLogoutDialog();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                elevation: 0,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
-                  Icon(Icons.logout, size: 20),
-                  SizedBox(width: 8),
-                  Text(
-                    'Logout',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-            ),
+  Widget _buildMenuItem(IconData icon, String title, {VoidCallback? onTap}) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 4),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
+        leading: Icon(icon, color: AppColors.text, size: 24),
+        title: Text(
+          title,
+          style: const TextStyle(
+            fontSize: 16,
+            color: AppColors.text,
+            fontWeight: FontWeight.w400,
           ),
-        );
-      },
+        ),
+        trailing: const Icon(
+          Icons.arrow_forward_ios,
+          size: 16,
+          color: AppColors.textSecondary,
+        ),
+        onTap: onTap,
+      ),
     );
   }
 
