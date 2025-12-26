@@ -1,4 +1,4 @@
-package com.example.rev_app
+package com.revupbikes.app
 
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
